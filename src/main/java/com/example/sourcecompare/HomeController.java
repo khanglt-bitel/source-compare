@@ -1,10 +1,6 @@
 package com.example.sourcecompare;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +10,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Controller
 public class HomeController {
+  private final ComparisonService comparisonService;
+
+  public HomeController(ComparisonService comparisonService) {
+    this.comparisonService = comparisonService;
+  }
+
   @GetMapping("/")
   public String index(Model model) {
     model.addAttribute("message", "Source Compare Initialized");
@@ -24,31 +26,16 @@ public class HomeController {
   public String compare(
       @RequestParam("leftZip") MultipartFile leftZip,
       @RequestParam("rightZip") MultipartFile rightZip,
+      @RequestParam("mode") ComparisonMode mode,
       Model model)
       throws IOException {
-    List<String> leftEntries = listZipEntries(leftZip);
-    List<String> rightEntries = listZipEntries(rightZip);
+    String diff = comparisonService.compare(leftZip, rightZip, mode);
     model.addAttribute(
         "message",
         String.format(
-            "Uploaded %s (%d entries) and %s (%d entries)",
-            leftZip.getOriginalFilename(),
-            leftEntries.size(),
-            rightZip.getOriginalFilename(),
-            rightEntries.size()));
+            "Compared %s and %s using %s",
+            leftZip.getOriginalFilename(), rightZip.getOriginalFilename(), mode));
+    model.addAttribute("diff", diff);
     return "index";
-  }
-
-  private List<String> listZipEntries(MultipartFile file) throws IOException {
-    List<String> entries = new ArrayList<>();
-    try (ZipInputStream zip = new ZipInputStream(file.getInputStream())) {
-      ZipEntry entry;
-      while ((entry = zip.getNextEntry()) != null) {
-        if (!entry.isDirectory()) {
-          entries.add(entry.getName());
-        }
-      }
-    }
-    return entries;
   }
 }

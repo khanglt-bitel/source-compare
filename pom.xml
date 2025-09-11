@@ -38,11 +38,18 @@
         </dependency>
 
         <!-- HTML normalization -->
-        <dependency>
-            <groupId>org.jsoup</groupId>
-            <artifactId>jsoup</artifactId>
-            <version>1.17.2</version>
-        </dependency>
+          <dependency>
+              <groupId>org.jsoup</groupId>
+              <artifactId>jsoup</artifactId>
+              <version>1.17.2</version>
+          </dependency>
+
+          <!-- Java formatting -->
+          <dependency>
+              <groupId>com.google.googlejavaformat</groupId>
+              <artifactId>google-java-format</artifactId>
+              <version>1.17.0</version>
+          </dependency>
 
         <!-- Diff utilities -->
         <dependency>

@@ -8,23 +8,30 @@
 <body>
 <h1 th:text="${message}">Source Compare Initialized</h1>
 
-<form method="post" action="/compare" enctype="multipart/form-data">
-  <label for="leftZip">Left ZIP:</label>
-  <input type="file" id="leftZip" name="leftZip" accept=".zip" required />
-  <br />
-  <label for="rightZip">Right ZIP:</label>
-  <input type="file" id="rightZip" name="rightZip" accept=".zip" required />
-  <br />
-  <button type="submit">Compare</button>
-</form>
+  <form method="post" action="/compare" enctype="multipart/form-data">
+    <label for="leftZip">Left ZIP:</label>
+    <input type="file" id="leftZip" name="leftZip" accept=".zip" required />
+    <br />
+    <label for="rightZip">Right ZIP:</label>
+    <input type="file" id="rightZip" name="rightZip" accept=".zip" required />
+    <br />
+    <label for="mode">Mode:</label>
+    <select id="mode" name="mode">
+      <option value="CLASS_VS_SOURCE">Class vs Source</option>
+      <option value="CLASS_VS_CLASS">Class vs Class</option>
+    </select>
+    <br />
+    <button type="submit">Compare</button>
+  </form>
 
-<div id="diff"></div>
-<script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
-<script>
-  // Placeholder: diff2html rendering will go here
-  const diffExample = "@@ Sample diff @@";
-  const target = document.getElementById("diff");
-  target.innerHTML = Diff2Html.html(diffExample, { drawFileList: false });
-</script>
+  <div id="diff" th:if="${diff}"></div>
+  <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
+  <script th:inline="javascript">
+    const diffExample = /*[[${diff}]]*/ '';
+    const target = document.getElementById("diff");
+    if (diffExample) {
+      target.innerHTML = Diff2Html.html(diffExample, { drawFileList: false });
+    }
+  </script>
 </body>
 </html>
