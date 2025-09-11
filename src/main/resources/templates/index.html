@@ -7,6 +7,17 @@
 </head>
 <body>
 <h1 th:text="${message}">Source Compare Initialized</h1>
+
+<form method="post" action="/compare" enctype="multipart/form-data">
+  <label for="leftZip">Left ZIP:</label>
+  <input type="file" id="leftZip" name="leftZip" accept=".zip" required />
+  <br />
+  <label for="rightZip">Right ZIP:</label>
+  <input type="file" id="rightZip" name="rightZip" accept=".zip" required />
+  <br />
+  <button type="submit">Compare</button>
+</form>
+
 <div id="diff"></div>
 <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
 <script>
