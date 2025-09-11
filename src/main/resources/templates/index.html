@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8" />
+  <title>Source Compare</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" />
+</head>
+<body>
+<h1 th:text="${message}">Source Compare Initialized</h1>
+<div id="diff"></div>
+<script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
+<script>
+  // Placeholder: diff2html rendering will go here
+  const diffExample = "@@ Sample diff @@";
+  const target = document.getElementById("diff");
+  target.innerHTML = Diff2Html.html(diffExample, { drawFileList: false });
+</script>
+</body>
+</html>
