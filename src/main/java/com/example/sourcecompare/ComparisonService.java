@@ -8,14 +8,7 @@ import com.google.googlejavaformat.java.FormatterException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import org.benf.cfr.reader.api.CfrDriver;
@@ -154,12 +147,12 @@ public class ComparisonService {
     StringBuilder out = new StringBuilder();
     OutputSinkFactory sink =
         new OutputSinkFactory() {
-          @Override
-          public List<SinkClass> getSupportedSinks(SinkType sinkType) {
-            return List.of(SinkClass.STRING);
-          }
+            @Override
+            public List<SinkClass> getSupportedSinks(SinkType sinkType, Collection<SinkClass> collection) {
+                return List.of(SinkClass.STRING);
+            }
 
-          @Override
+            @Override
           public <T> Sink<T> getSink(SinkType sinkType, SinkClass sinkClass) {
             return t -> out.append(t).append(System.lineSeparator());
           }
