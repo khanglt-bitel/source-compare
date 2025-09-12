@@ -15,9 +15,30 @@
   <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
   <script th:inline="javascript">
     const diffText = [[${diff}]];
-    document.getElementById('diffContent').innerHTML = Diff2Html.html(diffText, {
+    const diffContainer = document.getElementById('diffContent');
+    diffContainer.innerHTML = Diff2Html.html(diffText, {
       drawFileList: false,
       outputFormat: 'side-by-side'
+    });
+
+    const fileCount = (diffText.match(/^### /gm) || []).length;
+    const collapse = fileCount > 20;
+    diffContainer.querySelectorAll('.d2h-file-wrapper').forEach((wrapper) => {
+      const header = wrapper.querySelector('.d2h-file-header');
+      const content = wrapper.querySelector('.d2h-file-diff');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-link btn-sm';
+      btn.textContent = collapse ? 'Show' : 'Hide';
+      btn.addEventListener('click', () => {
+        const hidden = content.style.display === 'none';
+        content.style.display = hidden ? '' : 'none';
+        btn.textContent = hidden ? 'Hide' : 'Show';
+      });
+      header.appendChild(btn);
+      if (collapse) {
+        content.style.display = 'none';
+      }
     });
   </script>
 </body>
