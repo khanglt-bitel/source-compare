@@ -3,35 +3,197 @@
 <head>
   <meta charset="UTF-8" />
   <title>Source Compare</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" />
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css"
+  />
 </head>
 <body>
-<h1 th:text="${message}">Source Compare Initialized</h1>
+  <div class="container mt-4">
+    <h1 th:text="${message}">Source Compare Initialized</h1>
 
-  <form method="post" action="/compare" enctype="multipart/form-data">
-    <label for="leftZip">Left ZIP:</label>
-    <input type="file" id="leftZip" name="leftZip" accept=".zip" required />
-    <br />
-    <label for="rightZip">Right ZIP:</label>
-    <input type="file" id="rightZip" name="rightZip" accept=".zip" required />
-    <br />
-    <label for="mode">Mode:</label>
-    <select id="mode" name="mode">
-      <option value="CLASS_VS_SOURCE">Class vs Source</option>
-      <option value="CLASS_VS_CLASS">Class vs Class</option>
-    </select>
-    <br />
-    <button type="submit">Compare</button>
-  </form>
+    <form
+      id="compareForm"
+      class="mt-3"
+      enctype="multipart/form-data"
+    >
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label for="leftZip" class="form-label">Left ZIP</label>
+          <input
+            type="file"
+            id="leftZip"
+            name="leftZip"
+            accept=".zip"
+            required
+            class="form-control"
+            placeholder="Select left ZIP"
+          />
+          <div class="form-text">
+            Upload the ZIP file representing the left side of the comparison.
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label for="rightZip" class="form-label">Right ZIP</label>
+          <input
+            type="file"
+            id="rightZip"
+            name="rightZip"
+            accept=".zip"
+            required
+            class="form-control"
+            placeholder="Select right ZIP"
+          />
+          <div class="form-text">
+            Upload the ZIP file representing the right side of the comparison.
+          </div>
+        </div>
+      </div>
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <label for="mode" class="form-label">Mode</label>
+          <select id="mode" name="mode" class="form-select">
+            <option value="CLASS_VS_SOURCE">Class vs Source</option>
+            <option value="CLASS_VS_CLASS">Class vs Class</option>
+          </select>
+          <div class="form-text">Select the comparison mode.</div>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">Compare</button>
+    </form>
 
-  <div id="diff" th:if="${diff}"></div>
+    <div id="message" class="alert alert-danger mt-3 d-none" role="alert"></div>
+
+    <div id="loading" class="text-center mt-4" style="display: none">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+
+    <ul class="nav nav-tabs mt-4" id="resultTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button
+          class="nav-link active"
+          id="tree-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#tree"
+          type="button"
+          role="tab"
+          aria-controls="tree"
+          aria-selected="true"
+        >
+          Files
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button
+          class="nav-link"
+          id="diff-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#diff"
+          type="button"
+          role="tab"
+          aria-controls="diff"
+          aria-selected="false"
+        >
+          Diff
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content">
+      <div
+        class="tab-pane fade show active"
+        id="tree"
+        role="tabpanel"
+        aria-labelledby="tree-tab"
+      >
+        <input
+          type="text"
+          id="fileFilter"
+          class="form-control mt-3 mb-2"
+          placeholder="Filter files"
+        />
+        <ul id="fileTree" class="list-group"></ul>
+      </div>
+      <div
+        class="tab-pane fade"
+        id="diff"
+        role="tabpanel"
+        aria-labelledby="diff-tab"
+      >
+        <div id="diffContent" class="mt-3"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
   <script th:inline="javascript">
-    const diffExample = /*[[${diff}]]*/ '';
-    const target = document.getElementById("diff");
-    if (diffExample) {
-      target.innerHTML = Diff2Html.html(diffExample, { drawFileList: false });
+    const form = document.getElementById("compareForm");
+    const loading = document.getElementById("loading");
+    const diffContainer = document.getElementById("diffContent");
+    const fileTree = document.getElementById("fileTree");
+    const fileFilter = document.getElementById("fileFilter");
+    const messageBox = document.getElementById("message");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      diffContainer.innerHTML = "";
+      fileTree.innerHTML = "";
+      messageBox.classList.add("d-none");
+      loading.style.display = "block";
+
+      const formData = new FormData(form);
+      try {
+        const response = await fetch("/compare", {
+          method: "POST",
+          body: formData,
+        });
+        if (!response.ok) {
+          throw new Error("Comparison failed");
+        }
+        const data = await response.json();
+        if (data.files) {
+          renderFileTree(data.files);
+        }
+        if (data.diff) {
+          diffContainer.innerHTML = Diff2Html.html(data.diff, {
+            drawFileList: false,
+            outputFormat: "side-by-side",
+          });
+        }
+      } catch (err) {
+        messageBox.textContent = err.message;
+        messageBox.classList.remove("d-none");
+      } finally {
+        loading.style.display = "none";
+      }
+    });
+
+    function renderFileTree(files) {
+      fileTree.innerHTML = "";
+      files.forEach((file) => {
+        const li = document.createElement("li");
+        li.className = "list-group-item";
+        li.textContent = file;
+        fileTree.appendChild(li);
+      });
     }
+
+    fileFilter.addEventListener("input", () => {
+      const term = fileFilter.value.toLowerCase();
+      Array.from(fileTree.children).forEach((li) => {
+        li.style.display = li.textContent.toLowerCase().includes(term)
+          ? ""
+          : "none";
+      });
+    });
   </script>
 </body>
 </html>
+
