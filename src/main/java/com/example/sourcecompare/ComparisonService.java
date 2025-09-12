@@ -41,56 +41,60 @@ public class ComparisonService {
 
   private String compareClassToSource(MultipartFile classZip, MultipartFile sourceZip)
       throws IOException {
-    Map<String, String> leftRaw = decompileClasses(classZip);
-    Map<String, String> rightRaw = readSources(sourceZip);
+    Map<String, FileInfo> leftRaw = decompileClasses(classZip);
+    Map<String, FileInfo> rightRaw = readSources(sourceZip);
 
-    Map<String, String> left = new HashMap<>();
-    for (Map.Entry<String, String> e : leftRaw.entrySet()) {
-      left.put(e.getKey().replace(".class", ".java"), normalizeJava(e.getValue()));
+    Map<String, FileInfo> left = new HashMap<>();
+    for (Map.Entry<String, FileInfo> e : leftRaw.entrySet()) {
+      String name = e.getKey().replace(".class", ".java");
+      left.put(name, new FileInfo(name, normalizeJava(e.getValue().getContent())));
     }
-    Map<String, String> right = new HashMap<>();
-    for (Map.Entry<String, String> e : rightRaw.entrySet()) {
-      right.put(e.getKey(), normalizeJava(e.getValue()));
+    Map<String, FileInfo> right = new HashMap<>();
+    for (Map.Entry<String, FileInfo> e : rightRaw.entrySet()) {
+      String name = e.getKey();
+      right.put(name, new FileInfo(name, normalizeJava(e.getValue().getContent())));
     }
     return diffFileMaps(left, right);
   }
 
   private String compareClassToClass(MultipartFile leftZip, MultipartFile rightZip)
       throws IOException {
-    Map<String, String> left = classStructures(leftZip);
-    Map<String, String> right = classStructures(rightZip);
+    Map<String, FileInfo> left = classStructures(leftZip);
+    Map<String, FileInfo> right = classStructures(rightZip);
     return diffFileMaps(left, right);
   }
 
-  private Map<String, String> decompileClasses(MultipartFile zip) throws IOException {
-    Map<String, String> result = new HashMap<>();
+  private Map<String, FileInfo> decompileClasses(MultipartFile zip) throws IOException {
+    Map<String, FileInfo> result = new HashMap<>();
     try (ZipInputStream zis = new ZipInputStream(zip.getInputStream())) {
       ZipEntry entry;
       while ((entry = zis.getNextEntry()) != null) {
         if (!entry.isDirectory() && entry.getName().endsWith(".class")) {
           byte[] bytes = zis.readAllBytes();
-          result.put(entry.getName(), decompile(bytes));
+          String name = entry.getName();
+          result.put(name, new FileInfo(name, decompile(bytes)));
         }
       }
     }
     return result;
   }
 
-  private Map<String, String> readSources(MultipartFile zip) throws IOException {
-    Map<String, String> result = new HashMap<>();
+  private Map<String, FileInfo> readSources(MultipartFile zip) throws IOException {
+    Map<String, FileInfo> result = new HashMap<>();
     try (ZipInputStream zis = new ZipInputStream(zip.getInputStream())) {
       ZipEntry entry;
       while ((entry = zis.getNextEntry()) != null) {
         if (!entry.isDirectory() && entry.getName().endsWith(".java")) {
-          result.put(entry.getName(), new String(zis.readAllBytes()));
+          String name = entry.getName();
+          result.put(name, new FileInfo(name, new String(zis.readAllBytes())));
         }
       }
     }
     return result;
   }
 
-  private Map<String, String> classStructures(MultipartFile zip) throws IOException {
-    Map<String, String> result = new HashMap<>();
+  private Map<String, FileInfo> classStructures(MultipartFile zip) throws IOException {
+    Map<String, FileInfo> result = new HashMap<>();
     try (ZipInputStream zis = new ZipInputStream(zip.getInputStream())) {
       ZipEntry entry;
       while ((entry = zis.getNextEntry()) != null) {
@@ -129,17 +133,18 @@ public class ComparisonService {
                   + reader.getClassName()
                   + System.lineSeparator()
                   + String.join(System.lineSeparator(), lines);
-          result.put(entry.getName(), struct);
+          String name = entry.getName();
+          result.put(name, new FileInfo(name, struct));
         }
       }
     }
     return result;
   }
 
-  private String diffFileMaps(Map<String, String> left, Map<String, String> right) {
-    Map<String, String> added = new LinkedHashMap<>();
-    Map<String, String> deleted = new LinkedHashMap<>();
-    Map<String, String[]> modified = new LinkedHashMap<>();
+  private String diffFileMaps(Map<String, FileInfo> left, Map<String, FileInfo> right) {
+    Map<String, FileInfo> added = new LinkedHashMap<>();
+    Map<String, FileInfo> deleted = new LinkedHashMap<>();
+    Map<String, FileInfo[]> modified = new LinkedHashMap<>();
 
     Set<String> allNames = new TreeSet<>();
     allNames.addAll(left.keySet());
@@ -152,48 +157,50 @@ public class ComparisonService {
       } else if (!inLeft && inRight) {
         added.put(name, right.get(name));
       } else {
-        String l = left.get(name);
-        String r = right.get(name);
-        if (!Objects.equals(l, r)) {
-          modified.put(name, new String[] {l, r});
+        FileInfo l = left.get(name);
+        FileInfo r = right.get(name);
+        if (!Objects.equals(l.getContent(), r.getContent())) {
+          modified.put(name, new FileInfo[] {l, r});
         }
       }
     }
 
-    Map<String, String[]> renames = new LinkedHashMap<>();
-    Iterator<Map.Entry<String, String>> delIt = deleted.entrySet().iterator();
+    Map<String, FileInfo[]> renames = new LinkedHashMap<>();
+    Iterator<Map.Entry<String, FileInfo>> delIt = deleted.entrySet().iterator();
     while (delIt.hasNext()) {
-      Map.Entry<String, String> del = delIt.next();
+      Map.Entry<String, FileInfo> del = delIt.next();
       String bestName = null;
       double bestScore = 0.0;
-      for (Map.Entry<String, String> add : added.entrySet()) {
-        double score = similarity(del.getValue(), add.getValue());
+      for (Map.Entry<String, FileInfo> add : added.entrySet()) {
+        double score = similarity(del.getValue().getContent(), add.getValue().getContent());
         if (score > 0.85 && score > bestScore) {
           bestScore = score;
           bestName = add.getKey();
         }
       }
       if (bestName != null) {
-        String rightContent = added.remove(bestName);
-        renames.put(del.getKey() + "->" + bestName, new String[] {del.getValue(), rightContent});
+        FileInfo rightInfo = added.remove(bestName);
+        renames.put(del.getKey() + "->" + bestName, new FileInfo[] {del.getValue(), rightInfo});
         delIt.remove();
       }
     }
 
     StringBuilder allDiffs = new StringBuilder();
-    for (Map.Entry<String, String> e : added.entrySet()) {
+    for (Map.Entry<String, FileInfo> e : added.entrySet()) {
       allDiffs.append("### Added ").append(e.getKey()).append(System.lineSeparator());
-      allDiffs.append(generateDiff(e.getKey(), "", e.getValue()));
+      allDiffs.append(generateDiff(e.getKey(), "", e.getValue().getContent()));
     }
-    for (Map.Entry<String, String> e : deleted.entrySet()) {
+    for (Map.Entry<String, FileInfo> e : deleted.entrySet()) {
       allDiffs.append("### Deleted ").append(e.getKey()).append(System.lineSeparator());
-      allDiffs.append(generateDiff(e.getKey(), e.getValue(), ""));
+      allDiffs.append(generateDiff(e.getKey(), e.getValue().getContent(), ""));
     }
-    for (Map.Entry<String, String[]> e : modified.entrySet()) {
+    for (Map.Entry<String, FileInfo[]> e : modified.entrySet()) {
       allDiffs.append("### Modified ").append(e.getKey()).append(System.lineSeparator());
-      allDiffs.append(generateDiff(e.getKey(), e.getValue()[0], e.getValue()[1]));
+      allDiffs.append(
+          generateDiff(
+              e.getKey(), e.getValue()[0].getContent(), e.getValue()[1].getContent()));
     }
-    for (Map.Entry<String, String[]> e : renames.entrySet()) {
+    for (Map.Entry<String, FileInfo[]> e : renames.entrySet()) {
       String[] names = e.getKey().split("->", 2);
       allDiffs
           .append("### Renamed ")
@@ -201,7 +208,9 @@ public class ComparisonService {
           .append(" -> ")
           .append(names[1])
           .append(System.lineSeparator());
-      allDiffs.append(generateDiff(names[1], e.getValue()[0], e.getValue()[1]));
+      allDiffs.append(
+          generateDiff(
+              names[1], e.getValue()[0].getContent(), e.getValue()[1].getContent()));
     }
     return allDiffs.toString();
   }
