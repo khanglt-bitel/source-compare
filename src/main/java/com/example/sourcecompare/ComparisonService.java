@@ -41,34 +41,25 @@ public class ComparisonService {
 
   private String compareClassToSource(MultipartFile classZip, MultipartFile sourceZip)
       throws IOException {
-    Map<String, String> left = decompileClasses(classZip);
-    Map<String, String> right = readSources(sourceZip);
+    Map<String, String> leftRaw = decompileClasses(classZip);
+    Map<String, String> rightRaw = readSources(sourceZip);
 
-    StringBuilder allDiffs = new StringBuilder();
-    for (String classPath : left.keySet()) {
-      String javaPath = classPath.replace(".class", ".java");
-      String leftCode = normalizeJava(left.get(classPath));
-      String rightCode = normalizeJava(right.getOrDefault(javaPath, ""));
-      allDiffs.append(generateDiff(javaPath, rightCode, leftCode));
+    Map<String, String> left = new HashMap<>();
+    for (Map.Entry<String, String> e : leftRaw.entrySet()) {
+      left.put(e.getKey().replace(".class", ".java"), normalizeJava(e.getValue()));
     }
-    return allDiffs.toString();
+    Map<String, String> right = new HashMap<>();
+    for (Map.Entry<String, String> e : rightRaw.entrySet()) {
+      right.put(e.getKey(), normalizeJava(e.getValue()));
+    }
+    return diffFileMaps(left, right);
   }
 
   private String compareClassToClass(MultipartFile leftZip, MultipartFile rightZip)
       throws IOException {
     Map<String, String> left = classStructures(leftZip);
     Map<String, String> right = classStructures(rightZip);
-
-    StringBuilder allDiffs = new StringBuilder();
-    Set<String> allNames = new TreeSet<>();
-    allNames.addAll(left.keySet());
-    allNames.addAll(right.keySet());
-    for (String name : allNames) {
-      String leftStruct = left.getOrDefault(name, "");
-      String rightStruct = right.getOrDefault(name, "");
-      allDiffs.append(generateDiff(name, leftStruct, rightStruct));
-    }
-    return allDiffs.toString();
+    return diffFileMaps(left, right);
   }
 
   private Map<String, String> decompileClasses(MultipartFile zip) throws IOException {
@@ -143,6 +134,91 @@ public class ComparisonService {
       }
     }
     return result;
+  }
+
+  private String diffFileMaps(Map<String, String> left, Map<String, String> right) {
+    Map<String, String> added = new LinkedHashMap<>();
+    Map<String, String> deleted = new LinkedHashMap<>();
+    Map<String, String[]> modified = new LinkedHashMap<>();
+
+    Set<String> allNames = new TreeSet<>();
+    allNames.addAll(left.keySet());
+    allNames.addAll(right.keySet());
+    for (String name : allNames) {
+      boolean inLeft = left.containsKey(name);
+      boolean inRight = right.containsKey(name);
+      if (inLeft && !inRight) {
+        deleted.put(name, left.get(name));
+      } else if (!inLeft && inRight) {
+        added.put(name, right.get(name));
+      } else {
+        String l = left.get(name);
+        String r = right.get(name);
+        if (!Objects.equals(l, r)) {
+          modified.put(name, new String[] {l, r});
+        }
+      }
+    }
+
+    Map<String, String[]> renames = new LinkedHashMap<>();
+    Iterator<Map.Entry<String, String>> delIt = deleted.entrySet().iterator();
+    while (delIt.hasNext()) {
+      Map.Entry<String, String> del = delIt.next();
+      String bestName = null;
+      double bestScore = 0.0;
+      for (Map.Entry<String, String> add : added.entrySet()) {
+        double score = similarity(del.getValue(), add.getValue());
+        if (score > 0.85 && score > bestScore) {
+          bestScore = score;
+          bestName = add.getKey();
+        }
+      }
+      if (bestName != null) {
+        String rightContent = added.remove(bestName);
+        renames.put(del.getKey() + "->" + bestName, new String[] {del.getValue(), rightContent});
+        delIt.remove();
+      }
+    }
+
+    StringBuilder allDiffs = new StringBuilder();
+    for (Map.Entry<String, String> e : added.entrySet()) {
+      allDiffs.append("### Added ").append(e.getKey()).append(System.lineSeparator());
+      allDiffs.append(generateDiff(e.getKey(), "", e.getValue()));
+    }
+    for (Map.Entry<String, String> e : deleted.entrySet()) {
+      allDiffs.append("### Deleted ").append(e.getKey()).append(System.lineSeparator());
+      allDiffs.append(generateDiff(e.getKey(), e.getValue(), ""));
+    }
+    for (Map.Entry<String, String[]> e : modified.entrySet()) {
+      allDiffs.append("### Modified ").append(e.getKey()).append(System.lineSeparator());
+      allDiffs.append(generateDiff(e.getKey(), e.getValue()[0], e.getValue()[1]));
+    }
+    for (Map.Entry<String, String[]> e : renames.entrySet()) {
+      String[] names = e.getKey().split("->", 2);
+      allDiffs
+          .append("### Renamed ")
+          .append(names[0])
+          .append(" -> ")
+          .append(names[1])
+          .append(System.lineSeparator());
+      allDiffs.append(generateDiff(names[1], e.getValue()[0], e.getValue()[1]));
+    }
+    return allDiffs.toString();
+  }
+
+  private double similarity(String a, String b) {
+    List<String> aLines = Arrays.asList(a.split("\\R"));
+    List<String> bLines = Arrays.asList(b.split("\\R"));
+    if (aLines.isEmpty() && bLines.isEmpty()) {
+      return 1.0;
+    }
+    Patch<String> patch = DiffUtils.diff(aLines, bLines);
+    int total = Math.max(aLines.size(), bLines.size());
+    int changes =
+        patch.getDeltas().stream()
+            .mapToInt(d -> Math.max(d.getSource().size(), d.getTarget().size()))
+            .sum();
+    return 1.0 - (double) changes / total;
   }
 
   private String decompile(byte[] classBytes) throws IOException {
