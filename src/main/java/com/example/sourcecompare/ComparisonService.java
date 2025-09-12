@@ -185,27 +185,31 @@ public class ComparisonService {
       }
     }
 
-    Map<String, String> addedDiffs = new LinkedHashMap<>();
+    Map<String, DiffInfo> addedDiffs = new LinkedHashMap<>();
     for (Map.Entry<String, FileInfo> e : added.entrySet()) {
-      addedDiffs.put(e.getKey(), generateDiff(e.getKey(), "", e.getValue().getContent()));
+      addedDiffs.put(
+          e.getKey(), new DiffInfo(generateDiff(e.getKey(), "", e.getValue().getContent())));
     }
-    Map<String, String> deletedDiffs = new LinkedHashMap<>();
+    Map<String, DiffInfo> deletedDiffs = new LinkedHashMap<>();
     for (Map.Entry<String, FileInfo> e : deleted.entrySet()) {
-      deletedDiffs.put(e.getKey(), generateDiff(e.getKey(), e.getValue().getContent(), ""));
+      deletedDiffs.put(
+          e.getKey(), new DiffInfo(generateDiff(e.getKey(), e.getValue().getContent(), "")));
     }
-    Map<String, String> modifiedDiffs = new LinkedHashMap<>();
+    Map<String, DiffInfo> modifiedDiffs = new LinkedHashMap<>();
     for (Map.Entry<String, FileInfo[]> e : modified.entrySet()) {
       modifiedDiffs.put(
           e.getKey(),
-          generateDiff(
-              e.getKey(), e.getValue()[0].getContent(), e.getValue()[1].getContent()));
+          new DiffInfo(
+              generateDiff(
+                  e.getKey(), e.getValue()[0].getContent(), e.getValue()[1].getContent())));
     }
-    Map<String, String> renamedDiffs = new LinkedHashMap<>();
+    Map<String, DiffInfo> renamedDiffs = new LinkedHashMap<>();
     for (Map.Entry<String, FileInfo[]> e : renames.entrySet()) {
       String[] names = e.getKey().split("->", 2);
       renamedDiffs.put(
           e.getKey(),
-          generateDiff(names[1], e.getValue()[0].getContent(), e.getValue()[1].getContent()));
+          new DiffInfo(
+              generateDiff(names[1], e.getValue()[0].getContent(), e.getValue()[1].getContent())));
     }
     return new ComparisonResult(addedDiffs, deletedDiffs, modifiedDiffs, renamedDiffs);
   }
