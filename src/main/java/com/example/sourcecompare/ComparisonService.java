@@ -216,7 +216,7 @@ public class ComparisonService {
     int total = Math.max(aLines.size(), bLines.size());
     int changes =
         patch.getDeltas().stream()
-            .mapToInt(d -> Math.max(d.getOriginal().size(), d.getRevised().size()))
+            .mapToInt(d -> Math.max(d.getSource().size(), d.getTarget().size()))
             .sum();
     return 1.0 - (double) changes / total;
   }
