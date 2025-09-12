@@ -31,15 +31,15 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class ComparisonService {
 
-  public String compare(MultipartFile leftZip, MultipartFile rightZip, ComparisonMode mode)
-      throws IOException {
+  public ComparisonResult compare(
+      MultipartFile leftZip, MultipartFile rightZip, ComparisonMode mode) throws IOException {
     return switch (mode) {
       case CLASS_VS_SOURCE -> compareClassToSource(leftZip, rightZip);
       case CLASS_VS_CLASS -> compareClassToClass(leftZip, rightZip);
     };
   }
 
-  private String compareClassToSource(MultipartFile classZip, MultipartFile sourceZip)
+  private ComparisonResult compareClassToSource(MultipartFile classZip, MultipartFile sourceZip)
       throws IOException {
     Map<String, FileInfo> leftRaw = decompileClasses(classZip);
     Map<String, FileInfo> rightRaw = readSources(sourceZip);
@@ -57,7 +57,7 @@ public class ComparisonService {
     return diffFileMaps(left, right);
   }
 
-  private String compareClassToClass(MultipartFile leftZip, MultipartFile rightZip)
+  private ComparisonResult compareClassToClass(MultipartFile leftZip, MultipartFile rightZip)
       throws IOException {
     Map<String, FileInfo> left = classStructures(leftZip);
     Map<String, FileInfo> right = classStructures(rightZip);
@@ -141,7 +141,7 @@ public class ComparisonService {
     return result;
   }
 
-  private String diffFileMaps(Map<String, FileInfo> left, Map<String, FileInfo> right) {
+  private ComparisonResult diffFileMaps(Map<String, FileInfo> left, Map<String, FileInfo> right) {
     Map<String, FileInfo> added = new LinkedHashMap<>();
     Map<String, FileInfo> deleted = new LinkedHashMap<>();
     Map<String, FileInfo[]> modified = new LinkedHashMap<>();
@@ -185,34 +185,29 @@ public class ComparisonService {
       }
     }
 
-    StringBuilder allDiffs = new StringBuilder();
+    Map<String, String> addedDiffs = new LinkedHashMap<>();
     for (Map.Entry<String, FileInfo> e : added.entrySet()) {
-      allDiffs.append("### Added ").append(e.getKey()).append(System.lineSeparator());
-      allDiffs.append(generateDiff(e.getKey(), "", e.getValue().getContent()));
+      addedDiffs.put(e.getKey(), generateDiff(e.getKey(), "", e.getValue().getContent()));
     }
+    Map<String, String> deletedDiffs = new LinkedHashMap<>();
     for (Map.Entry<String, FileInfo> e : deleted.entrySet()) {
-      allDiffs.append("### Deleted ").append(e.getKey()).append(System.lineSeparator());
-      allDiffs.append(generateDiff(e.getKey(), e.getValue().getContent(), ""));
+      deletedDiffs.put(e.getKey(), generateDiff(e.getKey(), e.getValue().getContent(), ""));
     }
+    Map<String, String> modifiedDiffs = new LinkedHashMap<>();
     for (Map.Entry<String, FileInfo[]> e : modified.entrySet()) {
-      allDiffs.append("### Modified ").append(e.getKey()).append(System.lineSeparator());
-      allDiffs.append(
+      modifiedDiffs.put(
+          e.getKey(),
           generateDiff(
               e.getKey(), e.getValue()[0].getContent(), e.getValue()[1].getContent()));
     }
+    Map<String, String> renamedDiffs = new LinkedHashMap<>();
     for (Map.Entry<String, FileInfo[]> e : renames.entrySet()) {
       String[] names = e.getKey().split("->", 2);
-      allDiffs
-          .append("### Renamed ")
-          .append(names[0])
-          .append(" -> ")
-          .append(names[1])
-          .append(System.lineSeparator());
-      allDiffs.append(
-          generateDiff(
-              names[1], e.getValue()[0].getContent(), e.getValue()[1].getContent()));
+      renamedDiffs.put(
+          e.getKey(),
+          generateDiff(names[1], e.getValue()[0].getContent(), e.getValue()[1].getContent()));
     }
-    return allDiffs.toString();
+    return new ComparisonResult(addedDiffs, deletedDiffs, modifiedDiffs, renamedDiffs);
   }
 
   private double similarity(String a, String b) {

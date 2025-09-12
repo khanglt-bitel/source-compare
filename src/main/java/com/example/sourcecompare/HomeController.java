@@ -29,13 +29,13 @@ public class HomeController {
       @RequestParam("mode") ComparisonMode mode,
       Model model)
       throws IOException {
-    String diff = comparisonService.compare(leftZip, rightZip, mode);
+    ComparisonResult result = comparisonService.compare(leftZip, rightZip, mode);
     model.addAttribute(
         "message",
         String.format(
             "Compared %s and %s using %s",
             leftZip.getOriginalFilename(), rightZip.getOriginalFilename(), mode));
-    model.addAttribute("diff", diff);
+    model.addAttribute("diff", result.toUnifiedDiff());
     return "diff";
   }
 }
