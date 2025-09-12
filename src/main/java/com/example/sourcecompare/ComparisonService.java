@@ -203,13 +203,15 @@ public class ComparisonService {
               generateDiff(
                   e.getKey(), e.getValue()[0].getContent(), e.getValue()[1].getContent())));
     }
-    Map<String, DiffInfo> renamedDiffs = new LinkedHashMap<>();
+    List<RenameInfo> renamedDiffs = new ArrayList<>();
     for (Map.Entry<String, FileInfo[]> e : renames.entrySet()) {
       String[] names = e.getKey().split("->", 2);
-      renamedDiffs.put(
-          e.getKey(),
-          new DiffInfo(
-              generateDiff(names[1], e.getValue()[0].getContent(), e.getValue()[1].getContent())));
+      renamedDiffs.add(
+          new RenameInfo(
+              names[0],
+              names[1],
+              generateDiff(
+                  names[1], e.getValue()[0].getContent(), e.getValue()[1].getContent())));
     }
     return new ComparisonResult(addedDiffs, deletedDiffs, modifiedDiffs, renamedDiffs);
   }

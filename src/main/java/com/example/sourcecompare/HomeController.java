@@ -35,7 +35,7 @@ public class HomeController {
         String.format(
             "Compared %s and %s using %s",
             leftZip.getOriginalFilename(), rightZip.getOriginalFilename(), mode));
-    model.addAttribute("diff", result.toUnifiedDiff());
+    model.addAttribute("result", result);
     return "diff";
   }
 }
