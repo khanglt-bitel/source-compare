@@ -8,6 +8,8 @@ import com.google.googlejavaformat.java.FormatterException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -16,6 +18,8 @@ import org.benf.cfr.reader.api.OutputSinkFactory;
 import org.benf.cfr.reader.api.OutputSinkFactory.Sink;
 import org.benf.cfr.reader.api.OutputSinkFactory.SinkClass;
 import org.benf.cfr.reader.api.OutputSinkFactory.SinkType;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.FieldVisitor;
@@ -43,8 +47,8 @@ public class ComparisonService {
     StringBuilder allDiffs = new StringBuilder();
     for (String classPath : left.keySet()) {
       String javaPath = classPath.replace(".class", ".java");
-      String leftCode = formatJava(left.get(classPath));
-      String rightCode = formatJava(right.getOrDefault(javaPath, ""));
+      String leftCode = normalizeJava(left.get(classPath));
+      String rightCode = normalizeJava(right.getOrDefault(javaPath, ""));
       allDiffs.append(generateDiff(javaPath, rightCode, leftCode));
     }
     return allDiffs.toString();
@@ -147,12 +151,13 @@ public class ComparisonService {
     StringBuilder out = new StringBuilder();
     OutputSinkFactory sink =
         new OutputSinkFactory() {
-            @Override
-            public List<SinkClass> getSupportedSinks(SinkType sinkType, Collection<SinkClass> collection) {
-                return List.of(SinkClass.STRING);
-            }
+          @Override
+          public List<SinkClass> getSupportedSinks(
+              SinkType sinkType, Collection<SinkClass> collection) {
+            return List.of(SinkClass.STRING);
+          }
 
-            @Override
+          @Override
           public <T> Sink<T> getSink(SinkType sinkType, SinkClass sinkClass) {
             return t -> out.append(t).append(System.lineSeparator());
           }
@@ -163,11 +168,49 @@ public class ComparisonService {
     return out.toString();
   }
 
-  private String formatJava(String source) {
+  private String normalizeJava(String source) {
     try {
-      return new Formatter().formatSource(source);
+      source = new Formatter().formatSource(source);
     } catch (FormatterException e) {
-      return source;
+      // keep unformatted source
+    }
+    return normalizeText(source);
+  }
+
+  private String normalizeHtml(String source) {
+    Document doc = Jsoup.parse(source);
+    doc.outputSettings().prettyPrint(true).indentAmount(2);
+    return normalizeText(doc.outerHtml());
+  }
+
+  private String normalizeJsCss(String source) {
+    return normalizeText(source);
+  }
+
+  private String normalizeText(String source) {
+    String normalized = source.replace("\r\n", "\n").replace("\r", "\n");
+    String[] lines = normalized.split("\n", -1);
+    StringBuilder sb = new StringBuilder();
+    for (int i = 0; i < lines.length; i++) {
+      sb.append(lines[i].replaceAll("\\s+$", ""));
+      if (i < lines.length - 1) {
+        sb.append('\n');
+      }
+    }
+    return sb.toString();
+  }
+
+  private String hashContent(byte[] bytes) {
+    try {
+      MessageDigest md = MessageDigest.getInstance("SHA-256");
+      byte[] hash = md.digest(bytes);
+      StringBuilder sb = new StringBuilder();
+      for (byte b : hash) {
+        sb.append(String.format("%02x", b));
+      }
+      return sb.toString();
+    } catch (NoSuchAlgorithmException e) {
+      throw new RuntimeException(e);
     }
   }
 
