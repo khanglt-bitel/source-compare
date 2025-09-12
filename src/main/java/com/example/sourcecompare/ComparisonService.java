@@ -213,6 +213,7 @@ public class ComparisonService {
               generateDiff(
                   names[1], e.getValue()[0].getContent(), e.getValue()[1].getContent())));
     }
+    renamedDiffs.sort(Comparator.comparing(RenameInfo::getTo));
     return new ComparisonResult(addedDiffs, deletedDiffs, modifiedDiffs, renamedDiffs);
   }
 

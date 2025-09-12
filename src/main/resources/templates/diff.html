@@ -17,13 +17,6 @@
     const result = [[${result}]];
     const diffContainer = document.getElementById('diffContent');
 
-    const fileCount =
-      Object.keys(result.added).length +
-      Object.keys(result.deleted).length +
-      Object.keys(result.modified).length +
-      result.renamed.length;
-    const collapse = fileCount > 20;
-
     function renderDiff(title, diff) {
       const html = Diff2Html.html(diff, { drawFileList: false, outputFormat: 'side-by-side' });
       const container = document.createElement('div');
@@ -33,31 +26,41 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'btn btn-link btn-sm';
-      btn.textContent = collapse ? 'Show' : 'Hide';
+      btn.textContent = 'Show';
       btn.addEventListener('click', () => {
         const hidden = content.style.display === 'none';
         content.style.display = hidden ? '' : 'none';
         btn.textContent = hidden ? 'Hide' : 'Show';
       });
       header.appendChild(btn);
-      if (collapse) {
-        content.style.display = 'none';
-      }
+      content.style.display = 'none';
       diffContainer.appendChild(container);
     }
 
-    Object.entries(result.added).forEach(([name, info]) => {
-      renderDiff(`Added ${name}`, info.diff);
-    });
-    Object.entries(result.deleted).forEach(([name, info]) => {
-      renderDiff(`Deleted ${name}`, info.diff);
-    });
-    Object.entries(result.modified).forEach(([name, info]) => {
-      renderDiff(`Modified ${name}`, info.diff);
-    });
-    result.renamed.forEach((r) => {
-      renderDiff(`Renamed ${r.from} -> ${r.to}`, r.diff);
-    });
+    const diffs = [
+      ...Object.entries(result.added).map(([name, info]) => ({
+        sortName: name,
+        title: `Added ${name}`,
+        diff: info.diff,
+      })),
+      ...Object.entries(result.deleted).map(([name, info]) => ({
+        sortName: name,
+        title: `Deleted ${name}`,
+        diff: info.diff,
+      })),
+      ...Object.entries(result.modified).map(([name, info]) => ({
+        sortName: name,
+        title: `Modified ${name}`,
+        diff: info.diff,
+      })),
+      ...result.renamed.map((r) => ({
+        sortName: r.to,
+        title: `Renamed ${r.from} -> ${r.to}`,
+        diff: r.diff,
+      })),
+    ];
+    diffs.sort((a, b) => a.sortName.localeCompare(b.sortName));
+    diffs.forEach((d) => renderDiff(d.title, d.diff));
   </script>
 </body>
 </html>
