@@ -171,8 +171,9 @@ public class ComparisonService {
   private String normalizeJava(String source) {
     try {
       source = new Formatter().formatSource(source);
-    } catch (FormatterException e) {
-      // keep unformatted source
+    } catch (IllegalAccessError | FormatterException e) {
+      // google-java-format needs access to internal JDK packages that may be restricted;
+      // if unavailable, fall back to the original source without formatting.
     }
     return normalizeText(source);
   }
