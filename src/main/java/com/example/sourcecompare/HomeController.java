@@ -36,6 +36,6 @@ public class HomeController {
             "Compared %s and %s using %s",
             leftZip.getOriginalFilename(), rightZip.getOriginalFilename(), mode));
     model.addAttribute("diff", diff);
-    return "index";
+    return "diff";
   }
 }
