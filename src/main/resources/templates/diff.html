@@ -18,22 +18,31 @@
     const diffContainer = document.getElementById('diffContent');
 
     function renderDiff(title, diff) {
-        const html = Diff2Html.html(diff, {drawFileList: false, outputFormat: 'side-by-side'});
         const container = document.createElement('div');
-        container.innerHTML = `<h3>${title}</h3>${html}`;
-        const header = container.querySelector('.d2h-file-header');
-        const content = container.querySelector('.d2h-files-diff');
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn btn-link btn-sm';
-        btn.textContent = 'Show';
-        btn.addEventListener('click', () => {
-            const hidden = content.style.display === 'none';
-            content.style.display = hidden ? '' : 'none';
-            btn.textContent = hidden ? 'Hide' : 'Show';
-        });
-        header.appendChild(btn);
-        content.style.display = 'none';
+        container.innerHTML = `<h3>${title}</h3>`;
+        if (diff) {
+            const html = Diff2Html.html(diff, {drawFileList: false, outputFormat: 'side-by-side'});
+            const diffEl = document.createElement('div');
+            diffEl.innerHTML = html;
+            const header = diffEl.querySelector('.d2h-file-header');
+            const content = diffEl.querySelector('.d2h-files-diff');
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-link btn-sm';
+            btn.textContent = 'Show';
+            btn.addEventListener('click', () => {
+                const hidden = content.style.display === 'none';
+                content.style.display = hidden ? '' : 'none';
+                btn.textContent = hidden ? 'Hide' : 'Show';
+            });
+            header.appendChild(btn);
+            content.style.display = 'none';
+            container.appendChild(diffEl);
+        } else {
+            const p = document.createElement('p');
+            p.textContent = 'No changes';
+            container.appendChild(p);
+        }
         diffContainer.appendChild(container);
     }
 
@@ -57,6 +66,11 @@
             sortName: r.to,
             title: `Renamed ${r.from} -> ${r.to}`,
             diff: r.diff,
+        })),
+        ...result.unchanged.map((name) => ({
+            sortName: name,
+            title: `Unchanged ${name}`,
+            diff: null,
         })),
     ];
     diffs.sort((a, b) => a.sortName.localeCompare(b.sortName));

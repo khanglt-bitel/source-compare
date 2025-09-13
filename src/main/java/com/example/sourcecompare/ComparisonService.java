@@ -84,6 +84,7 @@ public class ComparisonService {
         Map<String, FileInfo> added = new LinkedHashMap<>();
         Map<String, FileInfo> deleted = new LinkedHashMap<>();
         Map<String, FileInfo[]> modified = new LinkedHashMap<>();
+        List<String> unchanged = new ArrayList<>();
 
         Set<String> allNames = new TreeSet<>();
         allNames.addAll(left.keySet());
@@ -100,6 +101,8 @@ public class ComparisonService {
                 FileInfo r = right.get(name);
                 if (!Objects.equals(l.getContent(), r.getContent())) {
                     modified.put(name, new FileInfo[]{l, r});
+                } else {
+                    unchanged.add(name);
                 }
             }
         }
@@ -153,7 +156,8 @@ public class ComparisonService {
                                     names[1], e.getValue()[0].getContent(), e.getValue()[1].getContent())));
         }
         renamedDiffs.sort(Comparator.comparing(RenameInfo::getTo));
-        return new ComparisonResult(addedDiffs, deletedDiffs, modifiedDiffs, renamedDiffs);
+        return new ComparisonResult(
+                addedDiffs, deletedDiffs, modifiedDiffs, renamedDiffs, unchanged);
     }
 
     private double similarity(String a, String b) {
