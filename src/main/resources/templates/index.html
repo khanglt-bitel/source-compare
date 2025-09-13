@@ -1,198 +1,198 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
-  <meta charset="UTF-8" />
-  <title>Source Compare</title>
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-    rel="stylesheet"
-  />
-  <link
-    rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css"
-  />
-  <style>
-    .drop-zone {
-      position: relative;
-      border: 2px dashed #ced4da;
-      border-radius: 0.375rem;
-      padding: 2rem 1rem;
-      text-align: center;
-      cursor: pointer;
-    }
+    <meta charset="UTF-8"/>
+    <title>Source Compare</title>
+    <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+    />
+    <link
+            href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css"
+            rel="stylesheet"
+    />
+    <style>
+        .drop-zone {
+            position: relative;
+            border: 2px dashed #ced4da;
+            border-radius: 0.375rem;
+            padding: 2rem 1rem;
+            text-align: center;
+            cursor: pointer;
+        }
 
-    .drop-zone.dragover {
-      background-color: #e9ecef;
-    }
-  </style>
+        .drop-zone.dragover {
+            background-color: #e9ecef;
+        }
+    </style>
 </head>
 <body>
-  <div class="container mt-4">
+<div class="container mt-4">
     <h1 th:text="${message}">Source Compare Initialized</h1>
 
     <form
-      id="compareForm"
-      class="mt-3"
-      action="/compare"
-      method="post"
-      enctype="multipart/form-data"
+            action="/compare"
+            class="mt-3"
+            enctype="multipart/form-data"
+            id="compareForm"
+            method="post"
     >
-      <div class="row mb-3">
-        <div class="col-md-6">
-          <label for="leftZip" class="form-label">Left ZIP</label>
-          <div id="leftDropZone" class="drop-zone mb-2">
-            <span class="drop-zone-text">Drag &amp; drop or click to select</span>
-            <input
-              type="file"
-              id="leftZip"
-              name="leftZip"
-              accept=".zip"
-              required
-              style="display: none"
-            />
-          </div>
-          <div class="form-text">
-            Upload the ZIP file representing the left side of the comparison.
-          </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label class="form-label" for="leftZip">Left ZIP</label>
+                <div class="drop-zone mb-2" id="leftDropZone">
+                    <span class="drop-zone-text">Drag &amp; drop or click to select</span>
+                    <input
+                            accept=".zip"
+                            id="leftZip"
+                            name="leftZip"
+                            required
+                            style="display: none"
+                            type="file"
+                    />
+                </div>
+                <div class="form-text">
+                    Upload the ZIP file representing the left side of the comparison.
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="rightZip">Right ZIP</label>
+                <div class="drop-zone mb-2" id="rightDropZone">
+                    <span class="drop-zone-text">Drag &amp; drop or click to select</span>
+                    <input
+                            accept=".zip"
+                            id="rightZip"
+                            name="rightZip"
+                            required
+                            style="display: none"
+                            type="file"
+                    />
+                </div>
+                <div class="form-text">
+                    Upload the ZIP file representing the right side of the comparison.
+                </div>
+            </div>
         </div>
-        <div class="col-md-6">
-          <label for="rightZip" class="form-label">Right ZIP</label>
-          <div id="rightDropZone" class="drop-zone mb-2">
-            <span class="drop-zone-text">Drag &amp; drop or click to select</span>
-            <input
-              type="file"
-              id="rightZip"
-              name="rightZip"
-              accept=".zip"
-              required
-              style="display: none"
-            />
-          </div>
-          <div class="form-text">
-            Upload the ZIP file representing the right side of the comparison.
-          </div>
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="form-label" for="mode">Mode</label>
+                <select class="form-select" id="mode" name="mode">
+                    <option value="CLASS_VS_CLASS">Class vs Class</option>
+                    <option value="CLASS_VS_SOURCE">Class vs Source</option>
+                </select>
+                <div class="form-text">Select the comparison mode.</div>
+            </div>
         </div>
-      </div>
-      <div class="row mb-3">
-        <div class="col-md-4">
-          <label for="mode" class="form-label">Mode</label>
-          <select id="mode" name="mode" class="form-select">
-            <option value="CLASS_VS_SOURCE">Class vs Source</option>
-            <option value="CLASS_VS_CLASS">Class vs Class</option>
-          </select>
-          <div class="form-text">Select the comparison mode.</div>
-        </div>
-      </div>
-      <button type="submit" class="btn btn-primary">Compare</button>
+        <button class="btn btn-primary" type="submit">Compare</button>
     </form>
 
-    <div id="message" class="alert alert-danger mt-3 d-none" role="alert"></div>
+    <div class="alert alert-danger mt-3 d-none" id="message" role="alert"></div>
 
-    <div id="loading" class="text-center mt-4" style="display: none">
-      <div class="spinner-border" role="status">
-        <span class="visually-hidden">Loading...</span>
-      </div>
+    <div class="text-center mt-4" id="loading" style="display: none">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
     </div>
 
     <ul class="nav nav-tabs mt-4" id="resultTabs" role="tablist">
-      <li class="nav-item" role="presentation">
-        <button
-          class="nav-link active"
-          id="tree-tab"
-          data-bs-toggle="tab"
-          data-bs-target="#tree"
-          type="button"
-          role="tab"
-          aria-controls="tree"
-          aria-selected="true"
-        >
-          Files
-        </button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button
-          class="nav-link"
-          id="diff-tab"
-          data-bs-toggle="tab"
-          data-bs-target="#diff"
-          type="button"
-          role="tab"
-          aria-controls="diff"
-          aria-selected="false"
-        >
-          Diff
-        </button>
-      </li>
+        <li class="nav-item" role="presentation">
+            <button
+                    aria-controls="tree"
+                    aria-selected="true"
+                    class="nav-link active"
+                    data-bs-target="#tree"
+                    data-bs-toggle="tab"
+                    id="tree-tab"
+                    role="tab"
+                    type="button"
+            >
+                Files
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button
+                    aria-controls="diff"
+                    aria-selected="false"
+                    class="nav-link"
+                    data-bs-target="#diff"
+                    data-bs-toggle="tab"
+                    id="diff-tab"
+                    role="tab"
+                    type="button"
+            >
+                Diff
+            </button>
+        </li>
     </ul>
 
     <div class="tab-content">
-      <div
-        class="tab-pane fade show active"
-        id="tree"
-        role="tabpanel"
-        aria-labelledby="tree-tab"
-      >
-        <input
-          type="text"
-          id="fileFilter"
-          class="form-control mt-3 mb-2"
-          placeholder="Filter files"
-        />
-        <ul id="fileTree" class="list-group"></ul>
-      </div>
-      <div
-        class="tab-pane fade"
-        id="diff"
-        role="tabpanel"
-        aria-labelledby="diff-tab"
-      >
-        <div id="diffContent" class="mt-3"></div>
-      </div>
+        <div
+                aria-labelledby="tree-tab"
+                class="tab-pane fade show active"
+                id="tree"
+                role="tabpanel"
+        >
+            <input
+                    class="form-control mt-3 mb-2"
+                    id="fileFilter"
+                    placeholder="Filter files"
+                    type="text"
+            />
+            <ul class="list-group" id="fileTree"></ul>
+        </div>
+        <div
+                aria-labelledby="diff-tab"
+                class="tab-pane fade"
+                id="diff"
+                role="tabpanel"
+        >
+            <div class="mt-3" id="diffContent"></div>
+        </div>
     </div>
-  </div>
+</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
-  <script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
+<script>
     function setupDropZone(dropZoneId, inputId) {
-      const dropZone = document.getElementById(dropZoneId);
-      const input = document.getElementById(inputId);
+        const dropZone = document.getElementById(dropZoneId);
+        const input = document.getElementById(inputId);
 
-      dropZone.addEventListener('click', () => input.click());
+        dropZone.addEventListener('click', () => input.click());
 
-      input.addEventListener('change', () => {
-        const text = dropZone.querySelector('.drop-zone-text');
-        if (input.files.length) {
-          text.textContent = input.files[0].name;
-        } else {
-          text.textContent = 'Drag & drop or click to select';
-        }
-      });
+        input.addEventListener('change', () => {
+            const text = dropZone.querySelector('.drop-zone-text');
+            if (input.files.length) {
+                text.textContent = input.files[0].name;
+            } else {
+                text.textContent = 'Drag & drop or click to select';
+            }
+        });
 
-      dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('dragover');
-      });
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
 
-      ['dragleave', 'dragend'].forEach((type) => {
-        dropZone.addEventListener(type, () => dropZone.classList.remove('dragover'));
-      });
+        ['dragleave', 'dragend'].forEach((type) => {
+            dropZone.addEventListener(type, () => dropZone.classList.remove('dragover'));
+        });
 
-      dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('dragover');
-        if (e.dataTransfer.files.length) {
-          input.files = e.dataTransfer.files;
-          input.dispatchEvent(new Event('change'));
-        }
-      });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                input.files = e.dataTransfer.files;
+                input.dispatchEvent(new Event('change'));
+            }
+        });
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      setupDropZone('leftDropZone', 'leftZip');
-      setupDropZone('rightDropZone', 'rightZip');
+        setupDropZone('leftDropZone', 'leftZip');
+        setupDropZone('rightDropZone', 'rightZip');
     });
-  </script>
+</script>
 </body>
 </html>
 

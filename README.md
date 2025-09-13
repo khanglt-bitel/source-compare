@@ -3,6 +3,7 @@
 Spring Boot web application for comparing Java sources and classes.
 
 ## Tech Stack
+
 - **Maven** for build management
 - **Spring Boot** with **Thymeleaf** for backend and views
 - **CFR** decompiler for `.class` files
@@ -13,32 +14,44 @@ Spring Boot web application for comparing Java sources and classes.
 - **diff2html** for frontend diff rendering
 
 # Web App: Java/Webapp Source Comparator
+
 ## 1. Input
 
 - Always 2 uploaded ZIP files.
 - Each ZIP may contain:
+
 + .class files (compiled Java)
 + .java files (source code)
 + .jsp, .html, .js, .css, and other web resources.
+
 ## 2. Comparison Modes
+
 ## Class vs Source Mode (primary):
+
 - Left side: .class files → decompile into Java.
 - Right side: .java source files.
 - Both sides → format/normalize to reduce false differences.
 - Diff the results.
+
 ## Class vs Class Mode (secondary option):
+
 - Compare .class files from both ZIPs.
 - Parse with ASM to extract signatures/methods/fields → diff the structure.
 
 ## 3. Normalization (before diffing)
 
 ### Java (.class / .java):
+
 - Decompile .class → Java source (CFR / Procyon).
 - Format with one standard formatter (google-java-format or Eclipse JDT).
 - Normalize line endings (\n) and trim trailing spaces.
+
 ### JSP / HTML:
-- Use jsoup to parse & pretty-print → consistent indentation and spacing. 
+
+- Use jsoup to parse & pretty-print → consistent indentation and spacing.
+
 ### JavaScript / CSS:
+
 - Basic normalization: consistent indentation, remove trailing whitespace.
 - Other files (binary/images):
 - Compare using hash only; no line diff.
@@ -46,33 +59,35 @@ Spring Boot web application for comparing Java sources and classes.
 ## 4. Diff Engine
 
 File-level comparison:
+
 - Added: only in right ZIP.
 - Deleted: only in left ZIP.
 - Modified: exists in both but content differs after normalization.
 - Renamed (optional): detect if deleted+added file are >85% similar.
-Line-level comparison:
+  Line-level comparison:
 - Use Myers algorithm (via java-diff-utils) to generate unified diff.
 
 ## 5. Output (UI)
 
 - File Tree View: shows all files, marked as Added / Modified / Deleted.
 - Side-by-Side Diff View: like GitHub:
-   + Left: first ZIP (e.g., Decompiled Classes)
-   + Right: second ZIP (e.g., Sources)
-   + Highlights exact differences.
-   + Filters: by file type (.java, .jsp, .html, .js) and change type (A/M/D).
-   + Search bar: filter files by name/path.
-   + Export: full HTML report (with embedded diffs) + JSON summary.
+    + Left: first ZIP (e.g., Decompiled Classes)
+    + Right: second ZIP (e.g., Sources)
+    + Highlights exact differences.
+    + Filters: by file type (.java, .jsp, .html, .js) and change type (A/M/D).
+    + Search bar: filter files by name/path.
+    + Export: full HTML report (with embedded diffs) + JSON summary.
 
 ## 6. Workflow
+
 - User uploads two ZIPs.
 - System unpacks both → normalized directory structures.
 - For each file:
-   + If .class → decompile → format.
-   + If .java → read → format.
-   + If .jsp/.html → jsoup normalize.
-   + If .js/.css → basic normalize.
-   + Else → compare hashes only.
+    + If .class → decompile → format.
+    + If .java → read → format.
+    + If .jsp/.html → jsoup normalize.
+    + If .js/.css → basic normalize.
+    + Else → compare hashes only.
 - Compare file lists → detect Added/Deleted/Modified.
 - For Modified files → run line-level diff.
 - Store results as JSON + unified diff text.
