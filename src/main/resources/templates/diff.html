@@ -9,6 +9,12 @@
 <body>
 <div class="container mt-4">
     <h1 th:text="${message}">Comparison Result</h1>
+    <div class="d-flex justify-content-end mt-3">
+        <div class="form-check form-switch">
+            <input class="form-check-input" id="toggleUnchanged" type="checkbox" checked />
+            <label class="form-check-label" for="toggleUnchanged">Show unchanged files</label>
+        </div>
+    </div>
     <div class="mt-3" id="diffContent"></div>
     <a class="btn btn-secondary mt-3" href="/">New Comparison</a>
 </div>
@@ -16,6 +22,7 @@
 <script th:inline="javascript">
     const result = [[${result}]];
     const diffContainer = document.getElementById('diffContent');
+    const toggleUnchanged = document.getElementById('toggleUnchanged');
 
     function renderDiff(title, diff) {
         const container = document.createElement('div');
@@ -51,30 +58,48 @@
             sortName: name,
             title: `Added ${name}`,
             diff: info.diff,
+            type: 'added',
         })),
         ...Object.entries(result.deleted).map(([name, info]) => ({
             sortName: name,
             title: `Deleted ${name}`,
             diff: info.diff,
+            type: 'deleted',
         })),
         ...Object.entries(result.modified).map(([name, info]) => ({
             sortName: name,
             title: `Modified ${name}`,
             diff: info.diff,
+            type: 'modified',
         })),
         ...result.renamed.map((r) => ({
             sortName: r.to,
             title: `Renamed ${r.from} -> ${r.to}`,
             diff: r.diff,
+            type: 'renamed',
         })),
         ...result.unchanged.map((name) => ({
             sortName: name,
             title: `Unchanged ${name}`,
             diff: null,
+            type: 'unchanged',
         })),
     ];
     diffs.sort((a, b) => a.sortName.localeCompare(b.sortName));
-    diffs.forEach((d) => renderDiff(d.title, d.diff));
+
+    function renderAllDiffs() {
+        diffContainer.innerHTML = '';
+        const showUnchanged = !toggleUnchanged || toggleUnchanged.checked;
+        diffs
+            .filter((d) => showUnchanged || d.type !== 'unchanged')
+            .forEach((d) => renderDiff(d.title, d.diff));
+    }
+
+    if (toggleUnchanged) {
+        toggleUnchanged.addEventListener('change', renderAllDiffs);
+    }
+
+    renderAllDiffs();
 </script>
 </body>
 </html>
