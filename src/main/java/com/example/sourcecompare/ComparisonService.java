@@ -55,23 +55,21 @@ public class ComparisonService {
             throws IOException {
         long start = System.currentTimeMillis();
         Map<String, FileInfo> leftRaw = decompileService.decompileClasses(leftZip);
-        log.info("Step 1: Decompile left:{}", (System.currentTimeMillis() - start) / 1000);
+        log.info("Step 1: leftRaw:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
         Map<String, FileInfo> rightRaw = decompileService.decompileClasses(rightZip);
-        log.info("Step 2: Decompile right:{}", (System.currentTimeMillis() - start) / 1000);
+        log.info("Step 2: rightRaw:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
         Map<String, FileInfo> left = new HashMap<>();
 
         leftRaw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> left.put(fi.getName(), fi));
-        log.info("Step 3: format left:{}", (System.currentTimeMillis() - start) / 1000);
-
+        log.info("Step 3: left format:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
         Map<String, FileInfo> right = new HashMap<>();
         rightRaw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> right.put(fi.getName(), fi));
-        log.info("Step 4: format right:{}", (System.currentTimeMillis() - start) / 1000);
-
+        log.info("Step 4: right format:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
         return diffFileMaps(left, right);
     }
 
@@ -80,24 +78,24 @@ public class ComparisonService {
         long start = System.currentTimeMillis();
         Map<String, FileInfo> leftRaw = readSources(leftZip);
         Map<String, FileInfo> rightRaw = readSources(rightZip);
-        log.info("Step 1: Read files:{}", (System.currentTimeMillis() - start) / 1000);
+        log.info("Step 1: Read files:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
         Map<String, FileInfo> left = new HashMap<>();
         leftRaw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> left.put(fi.getName(), fi));
 
-        log.info("Step 2: Execute left:{}", (System.currentTimeMillis() - start) / 1000);
+        log.info("Step 2: Execute left:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
         Map<String, FileInfo> right = new HashMap<>();
         rightRaw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> right.put(fi.getName(), fi));
-        log.info("Step 3: Execute right:{}", (System.currentTimeMillis() - start) / 1000);
+        log.info("Step 3: Execute right:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
         ComparisonResult result = diffFileMaps(left, right);
 
-        log.info("Step 4: Compare:{}", (System.currentTimeMillis() - start) / 1000);
+        log.info("Step 4: Compare:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
         return result;
     }
