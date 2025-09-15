@@ -119,7 +119,7 @@ public class DecompileService {
                     public void writeMessage(String message, Severity severity, Throwable t) {}
                 };
 
-        ConsoleDecompiler decompiler = new ConsoleDecompiler(outputDir, options, logger);
+        ConsoleDecompiler decompiler = new ConsoleDecompiler(outputDir.toFile(), options, logger);
 
         try {
             decompiler.addSource(classFile.toFile());
