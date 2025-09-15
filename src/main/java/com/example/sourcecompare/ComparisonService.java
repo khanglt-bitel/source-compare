@@ -11,15 +11,16 @@ import java.io.IOException;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Service
 public class ComparisonService {
-    @Autowired
-    private GoogleFormatService googleFormatService;
-    @Autowired
-    private DecompileService decompileService;
-    @Autowired
-    private EclipseFormatService eclipseFormatService;
+    @Autowired private GoogleFormatService googleFormatService;
+    @Autowired private DecompileService decompileService;
+    @Autowired private EclipseFormatService eclipseFormatService;
+
+    private static final Logger log = LogManager.getLogger(ComparisonService.class);
 
     public ComparisonResult compare(
             MultipartFile leftZip, MultipartFile rightZip, ComparisonMode mode) throws IOException {
@@ -69,27 +70,27 @@ public class ComparisonService {
 
     private ComparisonResult compareSourceToSource(MultipartFile leftZip, MultipartFile rightZip)
             throws IOException {
-        long start  = System.currentTimeMillis();
+        long start = System.currentTimeMillis();
         Map<String, FileInfo> leftRaw = readSources(leftZip);
         Map<String, FileInfo> rightRaw = readSources(rightZip);
-        System.out.println("Step 1: Read files:"+(System.currentTimeMillis()-start)/1000);
+        log.info("Step 1: Read files:{}", (System.currentTimeMillis() - start) / 1000);
 
         Map<String, FileInfo> left = new HashMap<>();
         leftRaw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> left.put(fi.getName(), fi));
 
-        System.out.println("Step 2: Execute left:"+(System.currentTimeMillis()-start)/1000);
+        log.info("Step 2: Execute left:{}", (System.currentTimeMillis() - start) / 1000);
 
         Map<String, FileInfo> right = new HashMap<>();
         rightRaw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> right.put(fi.getName(), fi));
-        System.out.println("Step 3: Execute right:"+(System.currentTimeMillis()-start)/1000);
+        log.info("Step 3: Execute right:{}", (System.currentTimeMillis() - start) / 1000);
 
         ComparisonResult result = diffFileMaps(left, right);
 
-        System.out.println("Step 4: Compare:"+(System.currentTimeMillis()-start)/1000);
+        log.info("Step 4: Compare:{}", (System.currentTimeMillis() - start) / 1000);
 
         return result;
     }
