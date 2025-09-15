@@ -69,22 +69,29 @@ public class ComparisonService {
 
     private ComparisonResult compareSourceToSource(MultipartFile leftZip, MultipartFile rightZip)
             throws IOException {
+        long start  = System.currentTimeMillis();
         Map<String, FileInfo> leftRaw = readSources(leftZip);
         Map<String, FileInfo> rightRaw = readSources(rightZip);
+        System.out.println("Step 1: Read files:"+(System.currentTimeMillis()-start)/1000);
 
         Map<String, FileInfo> left = new HashMap<>();
-        for (Map.Entry<String, FileInfo> e : leftRaw.entrySet()) {
-            String name = e.getKey();
-            left.put(name, new FileInfo(name, googleFormatService.normalizeJava(e.getValue().getContent())));
-        }
+        leftRaw.values().stream()
+                .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
+                .forEach(fi -> left.put(fi.getName(), fi));
+
+        System.out.println("Step 2: Execute left:"+(System.currentTimeMillis()-start)/1000);
 
         Map<String, FileInfo> right = new HashMap<>();
-        for (Map.Entry<String, FileInfo> e : rightRaw.entrySet()) {
-            String name = e.getKey();
-            right.put(name, new FileInfo(name, googleFormatService.normalizeJava(e.getValue().getContent())));
-        }
+        rightRaw.values().stream()
+                .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
+                .forEach(fi -> right.put(fi.getName(), fi));
+        System.out.println("Step 3: Execute right:"+(System.currentTimeMillis()-start)/1000);
 
-        return diffFileMaps(left, right);
+        ComparisonResult result = diffFileMaps(left, right);
+
+        System.out.println("Step 4: Compare:"+(System.currentTimeMillis()-start)/1000);
+
+        return result;
     }
 
     private Map<String, FileInfo> readSources(MultipartFile zip) throws IOException {
