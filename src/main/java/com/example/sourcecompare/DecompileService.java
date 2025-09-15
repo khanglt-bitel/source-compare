@@ -8,21 +8,35 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 @Service
 public class DecompileService {
+    private static final String LINE_SEPARATOR = System.lineSeparator();
+
     private final int decompileThreadPoolSize;
+    private final InMemoryClassFileSource classFileSource;
+    private final ThreadLocal<StringBuilder> decompileOutput = new ThreadLocal<>();
+    private final OutputSinkFactory outputSinkFactory;
+    private final CfrDriver cfrDriver;
+    private final Lock driverLock = new ReentrantLock();
 
     public DecompileService(@Value("${decompile.thread-pool-size:0}") int decompileThreadPoolSize) {
         int defaultPoolSize = Runtime.getRuntime().availableProcessors();
         int configuredPoolSize = decompileThreadPoolSize > 0 ? decompileThreadPoolSize : defaultPoolSize;
         this.decompileThreadPoolSize = Math.max(1, configuredPoolSize);
+        this.classFileSource = new InMemoryClassFileSource();
+        this.outputSinkFactory = createOutputSinkFactory();
+        this.cfrDriver =
+                new CfrDriver.Builder()
+                        .withOutputSink(outputSinkFactory)
+                        .withClassFileSource(classFileSource)
+                        .build();
     }
 
     public Map<String, FileInfo> decompileClasses(MultipartFile zip) throws IOException {
@@ -90,27 +104,42 @@ public class DecompileService {
     }
 
     public String decompile(byte[] classBytes) throws IOException {
-        Path tempClass = Files.createTempFile("cfr", ".class");
-        Files.write(tempClass, classBytes);
+        String path = classFileSource.register(classBytes);
         StringBuilder out = new StringBuilder();
-        OutputSinkFactory sink =
-                new OutputSinkFactory() {
-                    @Override
-                    public List<SinkClass> getSupportedSinks(
-                            SinkType sinkType, Collection<SinkClass> collection) {
-                        return List.of(SinkClass.STRING);
-                    }
-
-                    @Override
-                    public <T> Sink<T> getSink(SinkType sinkType, SinkClass sinkClass) {
-                        return t -> out.append(t).append(System.lineSeparator());
-                    }
-                };
-        CfrDriver driver = new CfrDriver.Builder().withOutputSink(sink).build();
-        driver.analyse(Collections.singletonList(tempClass.toString()));
-        Files.deleteIfExists(tempClass);
+        decompileOutput.set(out);
+        try {
+            driverLock.lock();
+            try {
+                cfrDriver.analyse(Collections.singletonList(path));
+            } finally {
+                driverLock.unlock();
+            }
+        } finally {
+            decompileOutput.remove();
+            classFileSource.release(path);
+        }
         // Somehow it return with "Analysis by" => remove
-        String result = "//" + out.toString();
-        return result;
+        return "//" + out.toString();
+    }
+
+    private OutputSinkFactory createOutputSinkFactory() {
+        return new OutputSinkFactory() {
+            @Override
+            public List<SinkClass> getSupportedSinks(
+                    SinkType sinkType, Collection<SinkClass> collection) {
+                return List.of(SinkClass.STRING);
+            }
+
+            @Override
+            public <T> Sink<T> getSink(SinkType sinkType, SinkClass sinkClass) {
+                return t -> {
+                    StringBuilder builder = decompileOutput.get();
+                    if (builder == null || !(t instanceof String str)) {
+                        return;
+                    }
+                    builder.append(str).append(LINE_SEPARATOR);
+                };
+            }
+        };
     }
 }
