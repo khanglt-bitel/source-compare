@@ -3,6 +3,8 @@ package com.example.sourcecompare;
 import com.github.difflib.DiffUtils;
 import com.github.difflib.UnifiedDiffUtils;
 import com.github.difflib.patch.Patch;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -11,16 +13,16 @@ import java.io.IOException;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 @Service
 public class ComparisonService {
-    @Autowired private GoogleFormatService googleFormatService;
-    @Autowired private DecompileService decompileService;
-    @Autowired private EclipseFormatService eclipseFormatService;
-
     private static final Logger log = LogManager.getLogger(ComparisonService.class);
+    @Autowired
+    private GoogleFormatService googleFormatService;
+    @Autowired
+    private DecompileService decompileService;
+    @Autowired
+    private EclipseFormatService eclipseFormatService;
 
     public ComparisonResult compare(
             MultipartFile leftZip, MultipartFile rightZip, ComparisonMode mode) throws IOException {
@@ -51,19 +53,24 @@ public class ComparisonService {
 
     private ComparisonResult compareClassToClass(MultipartFile leftZip, MultipartFile rightZip)
             throws IOException {
+        long start = System.currentTimeMillis();
         Map<String, FileInfo> leftRaw = decompileService.decompileClasses(leftZip);
+        log.info("Step 1: Decompile left:{}", (System.currentTimeMillis() - start) / 1000);
         Map<String, FileInfo> rightRaw = decompileService.decompileClasses(rightZip);
+        log.info("Step 2: Decompile right:{}", (System.currentTimeMillis() - start) / 1000);
 
         Map<String, FileInfo> left = new HashMap<>();
 
         leftRaw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> left.put(fi.getName(), fi));
+        log.info("Step 3: format left:{}", (System.currentTimeMillis() - start) / 1000);
 
         Map<String, FileInfo> right = new HashMap<>();
         rightRaw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> right.put(fi.getName(), fi));
+        log.info("Step 4: format right:{}", (System.currentTimeMillis() - start) / 1000);
 
         return diffFileMaps(left, right);
     }
@@ -110,6 +117,7 @@ public class ComparisonService {
     }
 
     private ComparisonResult diffFileMaps(Map<String, FileInfo> left, Map<String, FileInfo> right) {
+        long start = System.currentTimeMillis();
         Map<String, FileInfo> added = new LinkedHashMap<>();
         Map<String, FileInfo> deleted = new LinkedHashMap<>();
         Map<String, FileInfo[]> modified = new LinkedHashMap<>();
@@ -135,6 +143,7 @@ public class ComparisonService {
                 }
             }
         }
+        log.info("Step 1: diffFileMaps:{}", (System.currentTimeMillis() - start) / 1000);
 
         Map<String, FileInfo[]> renames = new LinkedHashMap<>();
         Iterator<Map.Entry<String, FileInfo>> delIt = deleted.entrySet().iterator();
@@ -155,6 +164,7 @@ public class ComparisonService {
                 delIt.remove();
             }
         }
+        log.info("Step 2: diffFileMaps:{}", (System.currentTimeMillis() - start) / 1000);
 
         Map<String, DiffInfo> addedDiffs = new LinkedHashMap<>();
         for (Map.Entry<String, FileInfo> e : added.entrySet()) {
@@ -174,6 +184,7 @@ public class ComparisonService {
                             generateDiff(
                                     e.getKey(), e.getValue()[0].getContent(), e.getValue()[1].getContent())));
         }
+        log.info("Step 3: diffFileMaps:{}", (System.currentTimeMillis() - start) / 1000);
         List<RenameInfo> renamedDiffs = new ArrayList<>();
         for (Map.Entry<String, FileInfo[]> e : renames.entrySet()) {
             String[] names = e.getKey().split("->", 2);
@@ -185,6 +196,7 @@ public class ComparisonService {
                                     names[1], e.getValue()[0].getContent(), e.getValue()[1].getContent())));
         }
         renamedDiffs.sort(Comparator.comparing(RenameInfo::getTo));
+        log.info("Step 4: diffFileMaps:{}", (System.currentTimeMillis() - start) / 1000);
         return new ComparisonResult(
                 addedDiffs, deletedDiffs, modifiedDiffs, renamedDiffs, unchanged);
     }
