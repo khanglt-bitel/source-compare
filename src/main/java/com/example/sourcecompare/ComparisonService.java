@@ -26,6 +26,7 @@ public class ComparisonService {
         return switch (mode) {
             case CLASS_VS_SOURCE -> compareClassToSource(leftZip, rightZip);
             case CLASS_VS_CLASS -> compareClassToClass(leftZip, rightZip);
+            case SOURCE_VS_SOURCE -> compareSourceToSource(leftZip, rightZip);
         };
     }
 
@@ -62,6 +63,26 @@ public class ComparisonService {
         rightRaw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> right.put(fi.getName(), fi));
+
+        return diffFileMaps(left, right);
+    }
+
+    private ComparisonResult compareSourceToSource(MultipartFile leftZip, MultipartFile rightZip)
+            throws IOException {
+        Map<String, FileInfo> leftRaw = readSources(leftZip);
+        Map<String, FileInfo> rightRaw = readSources(rightZip);
+
+        Map<String, FileInfo> left = new HashMap<>();
+        for (Map.Entry<String, FileInfo> e : leftRaw.entrySet()) {
+            String name = e.getKey();
+            left.put(name, new FileInfo(name, googleFormatService.normalizeJava(e.getValue().getContent())));
+        }
+
+        Map<String, FileInfo> right = new HashMap<>();
+        for (Map.Entry<String, FileInfo> e : rightRaw.entrySet()) {
+            String name = e.getKey();
+            right.put(name, new FileInfo(name, googleFormatService.normalizeJava(e.getValue().getContent())));
+        }
 
         return diffFileMaps(left, right);
     }
