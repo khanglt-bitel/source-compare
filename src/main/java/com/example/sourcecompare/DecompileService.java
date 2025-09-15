@@ -1,17 +1,20 @@
 package com.example.sourcecompare;
 
-import org.benf.cfr.reader.api.CfrDriver;
-import org.benf.cfr.reader.api.OutputSinkFactory;
+import org.jetbrains.java.decompiler.main.decompiler.ConsoleDecompiler;
+import org.jetbrains.java.decompiler.main.extern.IFernflowerLogger;
+import org.jetbrains.java.decompiler.main.extern.IFernflowerPreferences;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -98,27 +101,60 @@ public class DecompileService {
     }
 
     public String decompile(byte[] classBytes) throws IOException {
-        Path tempClass = Files.createTempFile("cfr", ".class");
-        Files.write(tempClass, classBytes);
-        StringBuilder out = new StringBuilder();
-        OutputSinkFactory sink =
-                new OutputSinkFactory() {
+        Path inputDir = Files.createTempDirectory("quiltflower-input");
+        Path outputDir = Files.createTempDirectory("quiltflower-output");
+        Path classFile = inputDir.resolve("Temp.class");
+        Files.write(classFile, classBytes);
+
+        Map<String, Object> options = new HashMap<>();
+        options.put(IFernflowerPreferences.REMOVE_SYNTHETIC, "1");
+        options.put(IFernflowerPreferences.REMOVE_BRIDGE, "1");
+
+        IFernflowerLogger logger =
+                new IFernflowerLogger() {
                     @Override
-                    public List<SinkClass> getSupportedSinks(
-                            SinkType sinkType, Collection<SinkClass> collection) {
-                        return List.of(SinkClass.STRING);
-                    }
+                    public void writeMessage(String message, Severity severity) {}
 
                     @Override
-                    public <T> Sink<T> getSink(SinkType sinkType, SinkClass sinkClass) {
-                        return t -> out.append(t).append(System.lineSeparator());
-                    }
+                    public void writeMessage(String message, Severity severity, Throwable t) {}
                 };
-        CfrDriver driver = new CfrDriver.Builder().withOutputSink(sink).build();
-        driver.analyse(Collections.singletonList(tempClass.toString()));
-        Files.deleteIfExists(tempClass);
-        // Somehow it return with "Analysis by" => remove
-        String result = "//" + out.toString();
-        return result;
+
+        ConsoleDecompiler decompiler = new ConsoleDecompiler(outputDir, options, logger);
+
+        try {
+            decompiler.addSource(classFile.toFile());
+            decompiler.decompileContext();
+
+            Path javaFile = findDecompiledFile(outputDir);
+            return Files.readString(javaFile);
+        } catch (RuntimeException e) {
+            throw new IOException("Failed to decompile class with Quiltflower", e);
+        } finally {
+            deleteRecursively(inputDir);
+            deleteRecursively(outputDir);
+        }
+    }
+
+    private Path findDecompiledFile(Path outputDir) throws IOException {
+        try (Stream<Path> stream = Files.walk(outputDir)) {
+            return stream.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".java"))
+                    .findFirst()
+                    .orElseThrow(
+                            () ->
+                                    new IOException(
+                                            "Quiltflower did not produce any .java output for class"));
+        }
+    }
+
+    private void deleteRecursively(Path directory) {
+        if (directory == null) {
+            return;
+        }
+        try (Stream<Path> stream = Files.walk(directory)) {
+            stream.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+        } catch (IOException ignored) {
+            // Best-effort cleanup
+        }
     }
 }
