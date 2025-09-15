@@ -103,8 +103,17 @@ File-level comparison:
 
 - Handles up to 10k files.
 - Uses streaming unzip (don’t load everything in memory at once).
+- Decompilation submits each `.class` entry directly to a completion service so that
+  only a handful of class byte arrays are resident at any moment, even for archives
+  with hundreds of megabytes of bytecode.
 - Parallelizes decompile/format with thread pool.
 - Lazy-load diffs in UI (diff only rendered when user clicks a file).
+
+## 10. Testing & Validation
+
+- Unit tests exercise the streaming decompilation pipeline, including a large archive
+  regression that tracks heap deltas to guard against reintroducing the previous
+  buffering behaviour.
 
 ## 8. Deployment
 
