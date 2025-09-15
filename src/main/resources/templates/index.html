@@ -74,13 +74,17 @@
             </div>
         </div>
         <div class="row mb-3">
-            <div class="col-md-4">
-                <label class="form-label" for="mode">Mode</label>
-                <select class="form-select" id="mode" name="mode">
-                    <option value="CLASS_VS_CLASS">Class vs Class</option>
-                    <option value="CLASS_VS_SOURCE">Class vs Source</option>
-                </select>
-                <div class="form-text">Select the comparison mode.</div>
+            <div class="col-md-12">
+                <div class="btn-group" role="group" aria-label="Comparison mode">
+                    <input type="radio" class="btn-check" name="mode" id="modeClassClass" value="CLASS_VS_CLASS" checked>
+                    <label class="btn btn-outline-primary" for="modeClassClass">Class vs Class</label>
+
+                    <input type="radio" class="btn-check" name="mode" id="modeClassSource" value="CLASS_VS_SOURCE">
+                    <label class="btn btn-outline-primary" for="modeClassSource">Class vs Source</label>
+
+                    <input type="radio" class="btn-check" name="mode" id="modeSourceSource" value="SOURCE_VS_SOURCE">
+                    <label class="btn btn-outline-primary" for="modeSourceSource">Source vs Source</label>
+                </div>
             </div>
         </div>
         <button class="btn btn-primary" type="submit">Compare</button>

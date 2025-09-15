@@ -38,6 +38,12 @@ Spring Boot web application for comparing Java sources and classes.
 - Compare .class files from both ZIPs.
 - Parse with ASM to extract signatures/methods/fields → diff the structure.
 
+## Source vs Source Mode:
+
+- Compare .java source files from both ZIPs.
+- Format and normalize each side using google-java-format.
+- Diff the results.
+
 ## 3. Normalization (before diffing)
 
 ### Java (.class / .java):
