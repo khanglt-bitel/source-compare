@@ -11,6 +11,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -51,26 +53,38 @@ public class ComparisonService {
         return diffFileMaps(left, right);
     }
 
-    private ComparisonResult compareClassToClass(MultipartFile leftZip, MultipartFile rightZip)
-            throws IOException {
-        long start = System.currentTimeMillis();
-        Map<String, FileInfo> leftRaw = decompileService.decompileClasses(leftZip);
-        log.info("Step 1: leftRaw:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
-        Map<String, FileInfo> rightRaw = decompileService.decompileClasses(rightZip);
-        log.info("Step 2: rightRaw:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
-
-        Map<String, FileInfo> left = new HashMap<>();
-
-        leftRaw.values().stream()
-                .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
-                .forEach(fi -> left.put(fi.getName(), fi));
-        log.info("Step 3: left format:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
-        Map<String, FileInfo> right = new HashMap<>();
-        rightRaw.values().stream()
-                .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
-                .forEach(fi -> right.put(fi.getName(), fi));
-        log.info("Step 4: right format:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
+    private ComparisonResult compareClassToClass(MultipartFile leftZip, MultipartFile rightZip) {
+        CompletableFuture<Map<String, FileInfo>> leftFuture =
+                CompletableFuture.supplyAsync(
+                        () -> {
+                            try {
+                                return decompileAndFormat(leftZip);
+                            } catch (IOException e) {
+                                throw new CompletionException(e);
+                            }
+                        });
+        CompletableFuture<Map<String, FileInfo>> rightFuture =
+                CompletableFuture.supplyAsync(
+                        () -> {
+                            try {
+                                return decompileAndFormat(rightZip);
+                            } catch (IOException e) {
+                                throw new CompletionException(e);
+                            }
+                        });
+        Map<String, FileInfo> left = leftFuture.join();
+        Map<String, FileInfo> right = rightFuture.join();
         return diffFileMaps(left, right);
+    }
+
+    private Map<String, FileInfo> decompileAndFormat(MultipartFile zip)
+            throws IOException {
+        Map<String, FileInfo> raw = decompileService.decompileClasses(zip);
+        Map<String, FileInfo> formatted = new HashMap<>();
+        raw.values().stream()
+                .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
+                .forEach(fi -> formatted.put(fi.getName(), fi));
+        return formatted;
     }
 
     private ComparisonResult compareSourceToSource(MultipartFile leftZip, MultipartFile rightZip)
