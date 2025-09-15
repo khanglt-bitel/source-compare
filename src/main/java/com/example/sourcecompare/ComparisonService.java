@@ -53,15 +53,12 @@ public class ComparisonService {
         return diffFileMaps(left, right);
     }
 
-    private ComparisonResult compareClassToClass(MultipartFile leftZip, MultipartFile rightZip)
-            throws IOException {
-        long start = System.currentTimeMillis();
+    private ComparisonResult compareClassToClass(MultipartFile leftZip, MultipartFile rightZip) {
         CompletableFuture<Map<String, FileInfo>> leftFuture =
                 CompletableFuture.supplyAsync(
                         () -> {
                             try {
-                                return decompileAndFormat(
-                                        leftZip, start, "Step 1: leftRaw", "Step 3: left format");
+                                return decompileAndFormat(leftZip);
                             } catch (IOException e) {
                                 throw new CompletionException(e);
                             }
@@ -70,41 +67,23 @@ public class ComparisonService {
                 CompletableFuture.supplyAsync(
                         () -> {
                             try {
-                                return decompileAndFormat(
-                                        rightZip, start, "Step 2: rightRaw", "Step 4: right format");
+                                return decompileAndFormat(rightZip);
                             } catch (IOException e) {
                                 throw new CompletionException(e);
                             }
                         });
-        try {
-            Map<String, FileInfo> left = leftFuture.join();
-            Map<String, FileInfo> right = rightFuture.join();
-            return diffFileMaps(left, right);
-        } catch (CompletionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof IOException ioException) {
-                throw ioException;
-            }
-            if (cause instanceof Error error) {
-                throw error;
-            }
-            if (cause instanceof RuntimeException runtimeException) {
-                throw runtimeException;
-            }
-            throw new IOException("Failed to compare class files", cause);
-        }
+        Map<String, FileInfo> left = leftFuture.join();
+        Map<String, FileInfo> right = rightFuture.join();
+        return diffFileMaps(left, right);
     }
 
-    private Map<String, FileInfo> decompileAndFormat(
-            MultipartFile zip, long start, String rawStepLabel, String formatStepLabel)
+    private Map<String, FileInfo> decompileAndFormat(MultipartFile zip)
             throws IOException {
         Map<String, FileInfo> raw = decompileService.decompileClasses(zip);
-        log.info("{}:{}", rawStepLabel, 1.0 * (System.currentTimeMillis() - start) / 1000);
         Map<String, FileInfo> formatted = new HashMap<>();
         raw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> formatted.put(fi.getName(), fi));
-        log.info("{}:{}", formatStepLabel, 1.0 * (System.currentTimeMillis() - start) / 1000);
         return formatted;
     }
 
