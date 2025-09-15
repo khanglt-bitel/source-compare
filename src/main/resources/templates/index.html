@@ -196,6 +196,23 @@
     document.addEventListener('DOMContentLoaded', () => {
         setupDropZone('leftDropZone', 'leftZip');
         setupDropZone('rightDropZone', 'rightZip');
+
+        const form = document.getElementById('compareForm');
+        const loading = document.getElementById('loading');
+        const message = document.getElementById('message');
+
+        if (form && loading) {
+            form.addEventListener('submit', () => {
+                if (message) {
+                    message.classList.add('d-none');
+                }
+                loading.style.display = 'block';
+                const submitButton = form.querySelector('button[type="submit"]');
+                if (submitButton) {
+                    submitButton.disabled = true;
+                }
+            });
+        }
     });
 </script>
 </body>
