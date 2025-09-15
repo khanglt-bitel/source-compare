@@ -26,41 +26,52 @@ public class DecompileService {
     }
 
     public Map<String, FileInfo> decompileClasses(MultipartFile zip) throws IOException {
-        Map<String, byte[]> classEntries = new LinkedHashMap<>();
-        try (ZipInputStream zis = new ZipInputStream(zip.getInputStream())) {
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                if (!entry.isDirectory() && entry.getName().endsWith(".class")) {
-                    classEntries.put(entry.getName(), zis.readAllBytes());
+        ExecutorService executor = Executors.newFixedThreadPool(decompileThreadPoolSize);
+        CompletionService<Map.Entry<String, FileInfo>> completionService =
+                new ExecutorCompletionService<>(executor);
+
+        List<String> entryOrder = new ArrayList<>();
+        int submittedTasks = 0;
+
+        try {
+            try (ZipInputStream zis = new ZipInputStream(zip.getInputStream())) {
+                ZipEntry entry;
+                while ((entry = zis.getNextEntry()) != null) {
+                    if (entry.isDirectory() || !entry.getName().endsWith(".class")) {
+                        continue;
+                    }
+
+                    String entryName = entry.getName();
+                    entryOrder.add(entryName);
+                    byte[] classBytes = zis.readAllBytes();
+                    zis.closeEntry();
+
+                    completionService.submit(
+                            () -> {
+                                try {
+                                    FileInfo info = new FileInfo(entryName, decompile(classBytes));
+                                    return Map.entry(entryName, info);
+                                } catch (IOException e) {
+                                    throw new UncheckedIOException(e);
+                                }
+                            });
+                    submittedTasks++;
                 }
             }
-        }
-        if (classEntries.isEmpty()) {
-            return new HashMap<>();
-        }
 
-        Map<String, FileInfo> concurrentResult = new ConcurrentHashMap<>();
-        ExecutorService executor = Executors.newFixedThreadPool(decompileThreadPoolSize);
-        try {
-            List<Callable<Void>> tasks = new ArrayList<>();
-            for (Map.Entry<String, byte[]> entry : classEntries.entrySet()) {
-                tasks.add(
-                        () -> {
-                            try {
-                                String name = entry.getKey();
-                                byte[] bytes = entry.getValue();
-                                concurrentResult.put(name, new FileInfo(name, decompile(bytes)));
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                            return null;
-                        });
+            if (submittedTasks == 0) {
+                return new HashMap<>();
             }
 
-            List<Future<Void>> futures = executor.invokeAll(tasks);
-            for (Future<Void> future : futures) {
+            Map<String, FileInfo> unorderedResults = new HashMap<>();
+            for (int i = 0; i < submittedTasks; i++) {
                 try {
-                    future.get();
+                    Future<Map.Entry<String, FileInfo>> future = completionService.take();
+                    Map.Entry<String, FileInfo> entry = future.get();
+                    unorderedResults.put(entry.getKey(), entry.getValue());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Decompilation interrupted", e);
                 } catch (ExecutionException e) {
                     Throwable cause = e.getCause();
                     if (cause instanceof UncheckedIOException) {
@@ -72,21 +83,18 @@ public class DecompileService {
                     throw new IOException("Failed to decompile class", cause);
                 }
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("Decompilation interrupted", e);
-        } finally {
-            executor.shutdown();
-        }
 
-        Map<String, FileInfo> orderedResult = new LinkedHashMap<>();
-        for (String name : classEntries.keySet()) {
-            FileInfo info = concurrentResult.get(name);
-            if (info != null) {
-                orderedResult.put(name, info);
+            Map<String, FileInfo> orderedResult = new LinkedHashMap<>();
+            for (String name : entryOrder) {
+                FileInfo info = unorderedResults.get(name);
+                if (info != null) {
+                    orderedResult.put(name, info);
+                }
             }
+            return orderedResult;
+        } finally {
+            executor.shutdownNow();
         }
-        return orderedResult;
     }
 
     public String decompile(byte[] classBytes) throws IOException {
