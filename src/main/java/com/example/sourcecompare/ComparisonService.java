@@ -3,6 +3,8 @@ package com.example.sourcecompare;
 import com.github.difflib.DiffUtils;
 import com.github.difflib.UnifiedDiffUtils;
 import com.github.difflib.patch.Patch;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -11,16 +13,16 @@ import java.io.IOException;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 @Service
 public class ComparisonService {
-    @Autowired private GoogleFormatService googleFormatService;
-    @Autowired private DecompileService decompileService;
-    @Autowired private EclipseFormatService eclipseFormatService;
-
     private static final Logger log = LogManager.getLogger(ComparisonService.class);
+    @Autowired
+    private GoogleFormatService googleFormatService;
+    @Autowired
+    private DecompileService decompileService;
+    @Autowired
+    private EclipseFormatService eclipseFormatService;
 
     public ComparisonResult compare(
             MultipartFile leftZip, MultipartFile rightZip, ComparisonMode mode) throws IOException {
@@ -51,20 +53,23 @@ public class ComparisonService {
 
     private ComparisonResult compareClassToClass(MultipartFile leftZip, MultipartFile rightZip)
             throws IOException {
+        long start = System.currentTimeMillis();
         Map<String, FileInfo> leftRaw = decompileService.decompileClasses(leftZip);
+        log.info("Step 1: leftRaw:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
         Map<String, FileInfo> rightRaw = decompileService.decompileClasses(rightZip);
+        log.info("Step 2: rightRaw:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
         Map<String, FileInfo> left = new HashMap<>();
 
         leftRaw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> left.put(fi.getName(), fi));
-
+        log.info("Step 3: left format:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
         Map<String, FileInfo> right = new HashMap<>();
         rightRaw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> right.put(fi.getName(), fi));
-
+        log.info("Step 4: right format:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
         return diffFileMaps(left, right);
     }
 
@@ -73,24 +78,24 @@ public class ComparisonService {
         long start = System.currentTimeMillis();
         Map<String, FileInfo> leftRaw = readSources(leftZip);
         Map<String, FileInfo> rightRaw = readSources(rightZip);
-        log.info("Step 1: Read files:{}", (System.currentTimeMillis() - start) / 1000);
+        log.info("Step 1: Read files:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
         Map<String, FileInfo> left = new HashMap<>();
         leftRaw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> left.put(fi.getName(), fi));
 
-        log.info("Step 2: Execute left:{}", (System.currentTimeMillis() - start) / 1000);
+        log.info("Step 2: Execute left:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
         Map<String, FileInfo> right = new HashMap<>();
         rightRaw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> right.put(fi.getName(), fi));
-        log.info("Step 3: Execute right:{}", (System.currentTimeMillis() - start) / 1000);
+        log.info("Step 3: Execute right:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
         ComparisonResult result = diffFileMaps(left, right);
 
-        log.info("Step 4: Compare:{}", (System.currentTimeMillis() - start) / 1000);
+        log.info("Step 4: Compare:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
         return result;
     }

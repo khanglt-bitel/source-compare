@@ -14,8 +14,7 @@ public class EclipseFormatService {
         String contentFormat;
         if (nameFormat.contains(".java")) {
             contentFormat = format(content);
-        }
-        else {
+        } else {
             contentFormat = content;
         }
 
