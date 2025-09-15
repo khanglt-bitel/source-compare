@@ -11,6 +11,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -54,23 +56,56 @@ public class ComparisonService {
     private ComparisonResult compareClassToClass(MultipartFile leftZip, MultipartFile rightZip)
             throws IOException {
         long start = System.currentTimeMillis();
-        Map<String, FileInfo> leftRaw = decompileService.decompileClasses(leftZip);
-        log.info("Step 1: leftRaw:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
-        Map<String, FileInfo> rightRaw = decompileService.decompileClasses(rightZip);
-        log.info("Step 2: rightRaw:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
+        CompletableFuture<Map<String, FileInfo>> leftFuture =
+                CompletableFuture.supplyAsync(
+                        () -> {
+                            try {
+                                return decompileAndFormat(
+                                        leftZip, start, "Step 1: leftRaw", "Step 3: left format");
+                            } catch (IOException e) {
+                                throw new CompletionException(e);
+                            }
+                        });
+        CompletableFuture<Map<String, FileInfo>> rightFuture =
+                CompletableFuture.supplyAsync(
+                        () -> {
+                            try {
+                                return decompileAndFormat(
+                                        rightZip, start, "Step 2: rightRaw", "Step 4: right format");
+                            } catch (IOException e) {
+                                throw new CompletionException(e);
+                            }
+                        });
+        try {
+            Map<String, FileInfo> left = leftFuture.join();
+            Map<String, FileInfo> right = rightFuture.join();
+            return diffFileMaps(left, right);
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof IOException ioException) {
+                throw ioException;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new IOException("Failed to compare class files", cause);
+        }
+    }
 
-        Map<String, FileInfo> left = new HashMap<>();
-
-        leftRaw.values().stream()
+    private Map<String, FileInfo> decompileAndFormat(
+            MultipartFile zip, long start, String rawStepLabel, String formatStepLabel)
+            throws IOException {
+        Map<String, FileInfo> raw = decompileService.decompileClasses(zip);
+        log.info("{}:{}", rawStepLabel, 1.0 * (System.currentTimeMillis() - start) / 1000);
+        Map<String, FileInfo> formatted = new HashMap<>();
+        raw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
-                .forEach(fi -> left.put(fi.getName(), fi));
-        log.info("Step 3: left format:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
-        Map<String, FileInfo> right = new HashMap<>();
-        rightRaw.values().stream()
-                .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
-                .forEach(fi -> right.put(fi.getName(), fi));
-        log.info("Step 4: right format:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
-        return diffFileMaps(left, right);
+                .forEach(fi -> formatted.put(fi.getName(), fi));
+        log.info("{}:{}", formatStepLabel, 1.0 * (System.currentTimeMillis() - start) / 1000);
+        return formatted;
     }
 
     private ComparisonResult compareSourceToSource(MultipartFile leftZip, MultipartFile rightZip)
