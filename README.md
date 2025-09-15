@@ -49,6 +49,7 @@ Spring Boot web application for comparing Java sources and classes.
 ### Java (.class / .java):
 
 - Decompile .class → Java source (CFR / Procyon).
+- Feed class bytes directly to CFR (no temp files) via a shared in-memory source to ensure consistent results and avoid disk churn.
 - Format with one standard formatter (google-java-format or Eclipse JDT).
 - Normalize line endings (\n) and trim trailing spaces.
 
