@@ -29,7 +29,7 @@ class DecompileServiceTest {
         TrackingDecompileService service =
                 new TrackingDecompileService(
                         2,
-                        bytes -> {
+                        (name, bytes) -> {
                             int delay = Byte.toUnsignedInt(bytes[0]);
                             try {
                                 TimeUnit.MILLISECONDS.sleep(delay);
@@ -73,7 +73,7 @@ class DecompileServiceTest {
         zipBytes = null;
 
         TrackingDecompileService service =
-                new TrackingDecompileService(4, bytes -> "size-" + bytes.length);
+                new TrackingDecompileService(4, (name, bytes) -> "size-" + bytes.length);
 
         long before = usedMemory();
         Map<String, FileInfo> result = service.decompileClasses(archive);
@@ -130,7 +130,7 @@ class DecompileServiceTest {
 
     @FunctionalInterface
     private interface DecompileFn {
-        String apply(byte[] bytes) throws IOException;
+        String apply(String entryName, byte[] bytes) throws IOException;
     }
 
     private static final class TrackingDecompileService extends DecompileService {
@@ -144,11 +144,11 @@ class DecompileServiceTest {
         }
 
         @Override
-        public String decompile(byte[] classBytes) throws IOException {
+        public String decompile(String entryName, byte[] classBytes) throws IOException {
             long current = activeBytes.addAndGet(classBytes.length);
             peakBytes.updateAndGet(prev -> Math.max(prev, current));
             try {
-                return delegate.apply(classBytes);
+                return delegate.apply(entryName, classBytes);
             } finally {
                 activeBytes.addAndGet(-classBytes.length);
             }

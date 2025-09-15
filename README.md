@@ -6,7 +6,7 @@ Spring Boot web application for comparing Java sources and classes.
 
 - **Maven** for build management
 - **Spring Boot** with **Thymeleaf** for backend and views
-- **CFR** decompiler for `.class` files
+- **FernFlower** decompiler for `.class` files
 - **google-java-format** for Java formatting
 - **jsoup** for HTML normalization
 - **java-diff-utils** for line-level diff
@@ -48,7 +48,7 @@ Spring Boot web application for comparing Java sources and classes.
 
 ### Java (.class / .java):
 
-- Decompile .class → Java source (CFR / Procyon).
+- Decompile .class → Java source (FernFlower).
 - Format with one standard formatter (google-java-format or Eclipse JDT).
 - Normalize line endings (\n) and trim trailing spaces.
 
@@ -133,7 +133,7 @@ File-level comparison:
 # Final Tech Stack
 
 - Spring Boot + Thymeleaf → web app backend + views.
-- CFR / Procyon → decompiler for .class.
+- FernFlower → decompiler for .class.
 - google-java-format (or Eclipse JDT) → formatter for Java.
 - jsoup → HTML/JSP normalization.
 - java-diff-utils → line-level diff.
