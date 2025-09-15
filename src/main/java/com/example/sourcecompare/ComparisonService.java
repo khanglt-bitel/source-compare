@@ -79,11 +79,14 @@ public class ComparisonService {
 
     private Map<String, FileInfo> decompileAndFormat(MultipartFile zip)
             throws IOException {
+        long start = System.currentTimeMillis();
         Map<String, FileInfo> raw = decompileService.decompileClasses(zip);
+        log.info("Step 1: decompileAndFormat raw:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
         Map<String, FileInfo> formatted = new HashMap<>();
         raw.values().stream()
                 .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> formatted.put(fi.getName(), fi));
+        log.info("Step 2: decompileAndFormat files:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
         return formatted;
     }
 
