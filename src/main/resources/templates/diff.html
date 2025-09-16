@@ -7,35 +7,191 @@
     <link href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" rel="stylesheet"/>
 </head>
 <body>
+<style>
+    .file-tree-card {
+        position: sticky;
+        top: 1rem;
+        max-height: calc(100vh - 2rem);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .file-tree-card .card-body {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        overflow: hidden;
+    }
+
+    .file-tree {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .file-tree ul {
+        list-style: none;
+        padding-left: 0;
+        margin-bottom: 0;
+    }
+
+    .tree-children {
+        padding-left: 1rem;
+        margin-top: 0.25rem;
+    }
+
+    .tree-children.is-collapsed {
+        display: none;
+    }
+
+    .tree-directory {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-weight: 600;
+        margin-top: 0.5rem;
+        background: transparent;
+        border: 0;
+        padding: 0;
+        color: inherit;
+        cursor: pointer;
+    }
+
+    .tree-directory:focus-visible {
+        outline: 2px solid #0d6efd;
+        outline-offset: 2px;
+    }
+
+    .tree-directory:disabled {
+        opacity: 0.6;
+        cursor: default;
+    }
+
+    .tree-toggle-icon {
+        display: inline-block;
+        font-size: 0.7rem;
+        transition: transform 0.2s ease;
+    }
+
+    .tree-directory[aria-expanded="false"] .tree-toggle-icon {
+        transform: rotate(-90deg);
+    }
+
+    .tree-file {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .tree-file.active .tree-link {
+        font-weight: 600;
+    }
+
+    .tree-link {
+        text-decoration: none;
+    }
+
+    .tree-link:hover,
+    .tree-link:focus {
+        text-decoration: underline;
+    }
+
+    .tree-file .badge {
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .diff-section {
+        scroll-margin-top: 80px;
+        padding-top: 0.5rem;
+    }
+
+    .diff-highlight {
+        animation: diff-highlight 2s ease-out;
+    }
+
+    @keyframes diff-highlight {
+        from {
+            background-color: #fff3cd;
+        }
+        to {
+            background-color: transparent;
+        }
+    }
+</style>
 <div class="container mt-4">
     <h1 th:text="${message}">Comparison Result</h1>
-    <div class="mt-3" id="diffContent"></div>
+    <div class="row mt-3">
+        <div class="col-lg-3 mb-3">
+            <div class="card h-100 file-tree-card">
+                <div class="card-header">Files</div>
+                <div class="card-body">
+                    <div class="file-tree" id="fileTree"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-9">
+            <div id="diffContent"></div>
+        </div>
+    </div>
     <a class="btn btn-secondary mt-3" href="/">New Comparison</a>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
 <script th:inline="javascript">
     const result = [[${result}]];
     const diffContainer = document.getElementById('diffContent');
+    const fileTreeContainer = document.getElementById('fileTree');
+    const diffSections = new Map();
+    let activeTreeItem = null;
+    let directoryIdCounter = 0;
 
-    function renderDiff(title, diff) {
+    const STATUS_INFO = {
+        added: {label: 'Added', badgeClass: 'bg-success'},
+        deleted: {label: 'Deleted', badgeClass: 'bg-danger'},
+        modified: {label: 'Modified', badgeClass: 'bg-primary'},
+        renamed: {label: 'Renamed', badgeClass: 'bg-warning text-dark'},
+        unchanged: {label: 'Unchanged', badgeClass: 'bg-secondary'},
+    };
+
+    function slugify(value) {
+        return value
+            .toString()
+            .trim()
+            .replace(/[\\/]+/g, '-')
+            .replace(/[^a-zA-Z0-9-_]+/g, '-')
+            .replace(/-{2,}/g, '-')
+            .replace(/^-+|-+$/g, '');
+    }
+
+    function renderDiff(item) {
         const container = document.createElement('div');
-        container.innerHTML = `<h3>${title}</h3>`;
-        if (diff) {
-            const html = Diff2Html.html(diff, {drawFileList: false, outputFormat: 'side-by-side'});
+        container.id = item.id;
+        container.className = 'diff-section mb-4';
+
+        const heading = document.createElement('h3');
+        heading.textContent = item.title;
+        container.appendChild(heading);
+
+        let toggleButton = null;
+        let content = null;
+
+        if (item.diff) {
+            const html = Diff2Html.html(item.diff, {drawFileList: false, outputFormat: 'side-by-side'});
             const diffEl = document.createElement('div');
             diffEl.innerHTML = html;
             const header = diffEl.querySelector('.d2h-file-header');
-            const content = diffEl.querySelector('.d2h-files-diff');
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'btn btn-link btn-sm';
-            btn.textContent = 'Show';
-            btn.addEventListener('click', () => {
+            content = diffEl.querySelector('.d2h-files-diff');
+            toggleButton = document.createElement('button');
+            toggleButton.type = 'button';
+            toggleButton.className = 'btn btn-link btn-sm diff-toggle';
+            toggleButton.textContent = 'Show';
+            toggleButton.addEventListener('click', () => {
                 const hidden = content.style.display === 'none';
                 content.style.display = hidden ? '' : 'none';
-                btn.textContent = hidden ? 'Hide' : 'Show';
+                toggleButton.textContent = hidden ? 'Hide' : 'Show';
             });
-            header.appendChild(btn);
+            header.appendChild(toggleButton);
             content.style.display = 'none';
             container.appendChild(diffEl);
         } else {
@@ -43,38 +199,228 @@
             p.textContent = 'No changes';
             container.appendChild(p);
         }
+
         diffContainer.appendChild(container);
+        diffSections.set(item.id, {container, toggleButton, content});
+    }
+
+    function buildTree(items) {
+        const root = {name: '', children: new Map(), files: []};
+
+        items.forEach((item) => {
+            const normalizedPath = (item.sortName || '').replace(/\\/g, '/');
+            const parts = normalizedPath.split('/').filter((p) => p);
+
+            if (parts.length === 0) {
+                root.files.push({name: item.sortName || item.title, item});
+                return;
+            }
+
+            let node = root;
+            for (let i = 0; i < parts.length - 1; i += 1) {
+                const part = parts[i];
+                if (!node.children.has(part)) {
+                    node.children.set(part, {name: part, children: new Map(), files: []});
+                }
+                node = node.children.get(part);
+            }
+
+            const fileName = parts[parts.length - 1];
+            node.files.push({name: fileName, item});
+        });
+
+        return root;
+    }
+
+    function createTreeList(node, isRoot = true, path = []) {
+        const ul = document.createElement('ul');
+        if (!isRoot) {
+            ul.classList.add('tree-children');
+        }
+
+        const directories = Array.from(node.children.values()).sort((a, b) => a.name.localeCompare(b.name));
+        directories.forEach((dir) => {
+            const li = document.createElement('li');
+
+            const toggleButton = document.createElement('button');
+            toggleButton.type = 'button';
+            toggleButton.className = 'tree-directory';
+            toggleButton.setAttribute('aria-expanded', 'true');
+
+            const icon = document.createElement('span');
+            icon.className = 'tree-toggle-icon';
+            icon.setAttribute('aria-hidden', 'true');
+            icon.textContent = '▾';
+            toggleButton.appendChild(icon);
+
+            const label = document.createElement('span');
+            label.textContent = dir.name;
+            toggleButton.appendChild(label);
+
+            const childPath = [...path, dir.name];
+            const hasChildren = (dir.children && dir.children.size > 0) || (dir.files && dir.files.length > 0);
+
+            if (hasChildren) {
+                const childList = createTreeList(dir, false, childPath);
+
+                directoryIdCounter += 1;
+                const directorySlug = slugify(childPath.join('/'));
+                const directoryId = `tree-group-${directoryIdCounter}${directorySlug ? `-${directorySlug}` : ''}`;
+                childList.id = directoryId;
+                toggleButton.setAttribute('aria-controls', directoryId);
+
+                toggleButton.addEventListener('click', () => {
+                    const collapsed = childList.classList.toggle('is-collapsed');
+                    toggleButton.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                });
+
+                li.appendChild(toggleButton);
+                li.appendChild(childList);
+            } else {
+                toggleButton.disabled = true;
+                li.appendChild(toggleButton);
+            }
+
+            ul.appendChild(li);
+        });
+
+        const files = node.files.sort((a, b) => a.name.localeCompare(b.name));
+        files.forEach((fileEntry) => {
+            const {item} = fileEntry;
+            const li = document.createElement('li');
+            li.className = 'tree-file';
+
+            const link = document.createElement('a');
+            link.href = `#${item.id}`;
+            link.className = 'tree-link';
+            link.textContent = fileEntry.name;
+            if (item.status === 'renamed' && item.from) {
+                link.title = `Renamed from ${item.from}`;
+            }
+
+            link.addEventListener('click', (event) => {
+                event.preventDefault();
+                if (activeTreeItem && activeTreeItem !== li) {
+                    activeTreeItem.classList.remove('active');
+                }
+                li.classList.add('active');
+                activeTreeItem = li;
+                const target = document.getElementById(item.id);
+                if (target) {
+                    target.scrollIntoView({behavior: 'smooth', block: 'start'});
+                    const info = diffSections.get(item.id);
+                    if (info && info.content && info.content.style.display === 'none' && info.toggleButton) {
+                        info.toggleButton.click();
+                    }
+                    if (info) {
+                        info.container.classList.add('diff-highlight');
+                        window.setTimeout(() => info.container.classList.remove('diff-highlight'), 2000);
+                    }
+                }
+            });
+
+            const statusInfo = STATUS_INFO[item.status] || STATUS_INFO.modified;
+            const badge = document.createElement('span');
+            badge.className = `badge ${statusInfo.badgeClass}`;
+            badge.textContent = statusInfo.label;
+
+            li.appendChild(link);
+            li.appendChild(badge);
+            ul.appendChild(li);
+        });
+
+        return ul;
+    }
+
+    function renderFileTree(items) {
+        fileTreeContainer.innerHTML = '';
+        if (items.length === 0) {
+            const emptyState = document.createElement('p');
+            emptyState.className = 'text-muted mb-0';
+            emptyState.textContent = 'No files to display.';
+            fileTreeContainer.appendChild(emptyState);
+            return;
+        }
+
+        const tree = buildTree(items);
+        fileTreeContainer.appendChild(createTreeList(tree));
     }
 
     const diffs = [
-        ...Object.entries(result.added).map(([name, info]) => ({
+        ...Object.entries(result.added || {}).map(([name, info]) => ({
             sortName: name,
             title: `Added ${name}`,
             diff: info.diff,
+            status: 'added',
         })),
-        ...Object.entries(result.deleted).map(([name, info]) => ({
+        ...Object.entries(result.deleted || {}).map(([name, info]) => ({
             sortName: name,
             title: `Deleted ${name}`,
             diff: info.diff,
+            status: 'deleted',
         })),
-        ...Object.entries(result.modified).map(([name, info]) => ({
+        ...Object.entries(result.modified || {}).map(([name, info]) => ({
             sortName: name,
             title: `Modified ${name}`,
             diff: info.diff,
+            status: 'modified',
         })),
-        ...result.renamed.map((r) => ({
+        ...(result.renamed || []).map((r) => ({
             sortName: r.to,
             title: `Renamed ${r.from} -> ${r.to}`,
             diff: r.diff,
+            status: 'renamed',
+            from: r.from,
         })),
-        ...result.unchanged.map((name) => ({
+        ...(result.unchanged || []).map((name) => ({
             sortName: name,
             title: `Unchanged ${name}`,
             diff: null,
+            status: 'unchanged',
         })),
     ];
+
     diffs.sort((a, b) => a.sortName.localeCompare(b.sortName));
-    diffs.forEach((d) => renderDiff(d.title, d.diff));
+
+    diffs.forEach((item, index) => {
+        const slug = slugify(item.sortName || `item-${index}`) || `item-${index}`;
+        item.id = `diff-${index}-${slug}`;
+        renderDiff(item);
+    });
+
+    renderFileTree(diffs);
+
+    if (window.location.hash) {
+        const treeLink = fileTreeContainer.querySelector(`a[href='${window.location.hash}']`);
+        if (treeLink) {
+            const treeItem = treeLink.closest('.tree-file');
+            if (treeItem) {
+                treeItem.classList.add('active');
+                activeTreeItem = treeItem;
+                treeItem.scrollIntoView({block: 'nearest'});
+            }
+        }
+    }
+
+    window.addEventListener('hashchange', () => {
+        if (!window.location.hash) {
+            return;
+        }
+        const hashLink = fileTreeContainer.querySelector(`a[href='${window.location.hash}']`);
+        if (!hashLink) {
+            return;
+        }
+        const hashItem = hashLink.closest('.tree-file');
+        if (!hashItem) {
+            return;
+        }
+        if (activeTreeItem && activeTreeItem !== hashItem) {
+            activeTreeItem.classList.remove('active');
+        }
+        hashItem.classList.add('active');
+        activeTreeItem = hashItem;
+        hashItem.scrollIntoView({block: 'nearest'});
+    });
 </script>
 </body>
 </html>
