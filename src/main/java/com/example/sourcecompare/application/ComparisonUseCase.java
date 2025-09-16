@@ -1,15 +1,19 @@
-package com.example.sourcecompare;
+package com.example.sourcecompare.application;
 
+import com.example.sourcecompare.domain.ArchiveInput;
+import com.example.sourcecompare.domain.ComparisonRequest;
+import com.example.sourcecompare.domain.ComparisonResult;
+import com.example.sourcecompare.domain.DiffInfo;
+import com.example.sourcecompare.domain.FileInfo;
+import com.example.sourcecompare.domain.RenameInfo;
 import com.github.difflib.DiffUtils;
-import com.github.difflib.UnifiedDiffUtils;
 import com.github.difflib.patch.Patch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -17,64 +21,89 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 @Service
-public class ComparisonService {
-    private static final Logger log = LogManager.getLogger(ComparisonService.class);
-    private static final String NO_TEXTUAL_DIFFERENCES_MESSAGE = "No textual differences available.";
-    @Autowired
-    private GoogleFormatService googleFormatService;
-    @Autowired
-    private DecompileService decompileService;
-    @Autowired
-    private EclipseFormatService eclipseFormatService;
+public class ComparisonUseCase {
+    private static final Logger log = LogManager.getLogger(ComparisonUseCase.class);
 
-    public ComparisonResult compare(
-            MultipartFile leftZip,
-            MultipartFile rightZip,
-            ComparisonMode mode,
-            int contextSize,
-            boolean includeUnchanged)
-            throws IOException {
-        int normalizedContextSize = Math.max(0, contextSize);
-        return switch (mode) {
+    private final ArchiveDecompiler archiveDecompiler;
+    private final JavaSourceNormalizer javaSourceNormalizer;
+    private final SourceFormatter sourceFormatter;
+    private final DiffRenderer diffRenderer;
+
+    public ComparisonUseCase(
+            ArchiveDecompiler archiveDecompiler,
+            JavaSourceNormalizer javaSourceNormalizer,
+            SourceFormatter sourceFormatter,
+            DiffRenderer diffRenderer) {
+        this.archiveDecompiler = archiveDecompiler;
+        this.javaSourceNormalizer = javaSourceNormalizer;
+        this.sourceFormatter = sourceFormatter;
+        this.diffRenderer = diffRenderer;
+    }
+
+    public ComparisonResult compare(ComparisonRequest request) throws IOException {
+        int normalizedContextSize = Math.max(0, request.contextSize());
+        return switch (request.mode()) {
             case CLASS_VS_SOURCE ->
                     compareClassToSource(
-                            leftZip, rightZip, normalizedContextSize, includeUnchanged);
+                            request.left(),
+                            request.right(),
+                            normalizedContextSize,
+                            request.includeUnchanged());
             case CLASS_VS_CLASS ->
-                    compareClassToClass(leftZip, rightZip, normalizedContextSize, includeUnchanged);
+                    compareClassToClass(
+                            request.left(),
+                            request.right(),
+                            normalizedContextSize,
+                            request.includeUnchanged());
             case SOURCE_VS_SOURCE ->
-                    compareSourceToSource(leftZip, rightZip, normalizedContextSize, includeUnchanged);
+                    compareSourceToSource(
+                            request.left(),
+                            request.right(),
+                            normalizedContextSize,
+                            request.includeUnchanged());
         };
     }
 
     private ComparisonResult compareClassToSource(
-            MultipartFile classZip,
-            MultipartFile sourceZip,
+            ArchiveInput classArchive,
+            ArchiveInput sourceArchive,
             int contextSize,
             boolean includeUnchanged)
             throws IOException {
-        Map<String, FileInfo> leftRaw = decompileService.decompileClasses(classZip);
-        Map<String, FileInfo> rightRaw = readSources(sourceZip);
+        Map<String, FileInfo> leftRaw = archiveDecompiler.decompileClasses(classArchive);
+        Map<String, FileInfo> rightRaw = readSources(sourceArchive);
 
         Map<String, FileInfo> left = new HashMap<>();
         for (Map.Entry<String, FileInfo> e : leftRaw.entrySet()) {
             String name = e.getKey().replace(".class", ".java");
-            left.put(name, new FileInfo(name, googleFormatService.normalizeJava(e.getValue().getContent())));
+            left.put(
+                    name,
+                    new FileInfo(
+                            name,
+                            javaSourceNormalizer.normalizeJava(e.getValue().getContent())));
         }
         Map<String, FileInfo> right = new HashMap<>();
         for (Map.Entry<String, FileInfo> e : rightRaw.entrySet()) {
             String name = e.getKey();
-            right.put(name, new FileInfo(name, googleFormatService.normalizeJava(e.getValue().getContent())));
+            right.put(
+                    name,
+                    new FileInfo(
+                            name,
+                            javaSourceNormalizer.normalizeJava(e.getValue().getContent())));
         }
         return diffFileMaps(left, right, contextSize, includeUnchanged);
     }
 
     private ComparisonResult compareClassToClass(
-            MultipartFile leftZip, MultipartFile rightZip, int contextSize, boolean includeUnchanged) {
+            ArchiveInput leftArchive,
+            ArchiveInput rightArchive,
+            int contextSize,
+            boolean includeUnchanged) {
         CompletableFuture<Map<String, FileInfo>> leftFuture =
                 CompletableFuture.supplyAsync(
                         () -> {
                             try {
-                                return decompileAndFormat(leftZip);
+                                return decompileAndFormat(leftArchive);
                             } catch (IOException e) {
                                 throw new CompletionException(e);
                             }
@@ -83,7 +112,7 @@ public class ComparisonService {
                 CompletableFuture.supplyAsync(
                         () -> {
                             try {
-                                return decompileAndFormat(rightZip);
+                                return decompileAndFormat(rightArchive);
                             } catch (IOException e) {
                                 throw new CompletionException(e);
                             }
@@ -93,40 +122,39 @@ public class ComparisonService {
         return diffFileMaps(left, right, contextSize, includeUnchanged);
     }
 
-    private Map<String, FileInfo> decompileAndFormat(MultipartFile zip)
-            throws IOException {
+    private Map<String, FileInfo> decompileAndFormat(ArchiveInput archive) throws IOException {
         long start = System.currentTimeMillis();
-        Map<String, FileInfo> raw = decompileService.decompileClasses(zip);
+        Map<String, FileInfo> raw = archiveDecompiler.decompileClasses(archive);
         log.info("Step 1: decompileAndFormat raw:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
         Map<String, FileInfo> formatted = new HashMap<>();
         raw.values().stream()
-                .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
+                .map(fi -> sourceFormatter.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> formatted.put(fi.getName(), fi));
         log.info("Step 2: decompileAndFormat files:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
         return formatted;
     }
 
     private ComparisonResult compareSourceToSource(
-            MultipartFile leftZip,
-            MultipartFile rightZip,
+            ArchiveInput leftArchive,
+            ArchiveInput rightArchive,
             int contextSize,
             boolean includeUnchanged)
             throws IOException {
         long start = System.currentTimeMillis();
-        Map<String, FileInfo> leftRaw = readSources(leftZip);
-        Map<String, FileInfo> rightRaw = readSources(rightZip);
+        Map<String, FileInfo> leftRaw = readSources(leftArchive);
+        Map<String, FileInfo> rightRaw = readSources(rightArchive);
         log.info("Step 1: Read files:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
         Map<String, FileInfo> left = new HashMap<>();
         leftRaw.values().stream()
-                .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
+                .map(fi -> sourceFormatter.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> left.put(fi.getName(), fi));
 
         log.info("Step 2: Execute left:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
         Map<String, FileInfo> right = new HashMap<>();
         rightRaw.values().stream()
-                .map(fi -> eclipseFormatService.formatFile(fi.getName(), fi.getContent()))
+                .map(fi -> sourceFormatter.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> right.put(fi.getName(), fi));
         log.info("Step 3: Execute right:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
@@ -137,9 +165,10 @@ public class ComparisonService {
         return result;
     }
 
-    private Map<String, FileInfo> readSources(MultipartFile zip) throws IOException {
+    private Map<String, FileInfo> readSources(ArchiveInput archive) throws IOException {
         Map<String, FileInfo> result = new HashMap<>();
-        try (ZipInputStream zis = new ZipInputStream(zip.getInputStream())) {
+        try (InputStream inputStream = archive.openStream();
+                ZipInputStream zis = new ZipInputStream(inputStream)) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
                 if (!entry.isDirectory() && entry.getName().endsWith(".java")) {
@@ -176,11 +205,9 @@ public class ComparisonService {
                 FileInfo l = left.get(name);
                 FileInfo r = right.get(name);
                 if (!Objects.equals(l.getContent(), r.getContent())) {
-                    modified.put(name, new FileInfo[]{l, r});
-                } else {
-                    if (includeUnchanged) {
-                        unchanged.add(name);
-                    }
+                    modified.put(name, new FileInfo[] {l, r});
+                } else if (includeUnchanged) {
+                    unchanged.add(name);
                 }
             }
         }
@@ -206,7 +233,7 @@ public class ComparisonService {
             }
             if (bestName != null) {
                 FileInfo rightInfo = added.remove(bestName);
-                renames.put(del.getKey() + "->" + bestName, new FileInfo[]{leftInfo, rightInfo});
+                renames.put(del.getKey() + "->" + bestName, new FileInfo[] {leftInfo, rightInfo});
                 delIt.remove();
             }
         }
@@ -217,25 +244,36 @@ public class ComparisonService {
             addedDiffs.put(
                     e.getKey(),
                     new DiffInfo(
-                            generateDiff(e.getKey(), "", e.getValue().getContent(), contextSize)));
+                            diffRenderer.render(
+                                    e.getKey(),
+                                    "",
+                                    e.getValue().getContent(),
+                                    contextSize,
+                                    ArchiveDecompiler.CONTENT_NOT_READ)));
         }
         Map<String, DiffInfo> deletedDiffs = new LinkedHashMap<>();
         for (Map.Entry<String, FileInfo> e : deleted.entrySet()) {
             deletedDiffs.put(
                     e.getKey(),
                     new DiffInfo(
-                            generateDiff(e.getKey(), e.getValue().getContent(), "", contextSize)));
+                            diffRenderer.render(
+                                    e.getKey(),
+                                    e.getValue().getContent(),
+                                    "",
+                                    contextSize,
+                                    ArchiveDecompiler.CONTENT_NOT_READ)));
         }
         Map<String, DiffInfo> modifiedDiffs = new LinkedHashMap<>();
         for (Map.Entry<String, FileInfo[]> e : modified.entrySet()) {
             modifiedDiffs.put(
                     e.getKey(),
                     new DiffInfo(
-                            generateDiff(
+                            diffRenderer.render(
                                     e.getKey(),
                                     e.getValue()[0].getContent(),
                                     e.getValue()[1].getContent(),
-                                    contextSize)));
+                                    contextSize,
+                                    ArchiveDecompiler.CONTENT_NOT_READ)));
         }
         log.info("Step 3: diffFileMaps:{}", (System.currentTimeMillis() - start) / 1000);
         List<RenameInfo> renamedDiffs = new ArrayList<>();
@@ -245,11 +283,12 @@ public class ComparisonService {
                     new RenameInfo(
                             names[0],
                             names[1],
-                            generateDiff(
+                            diffRenderer.render(
                                     names[1],
                                     e.getValue()[0].getContent(),
                                     e.getValue()[1].getContent(),
-                                    contextSize)));
+                                    contextSize,
+                                    ArchiveDecompiler.CONTENT_NOT_READ)));
         }
         renamedDiffs.sort(Comparator.comparing(RenameInfo::getTo));
         log.info("Step 4: diffFileMaps:{}", (System.currentTimeMillis() - start) / 1000);
@@ -317,31 +356,5 @@ public class ComparisonService {
             return true;
         }
         return Math.abs(leftLength - rightLength) <= maxLength * 0.2;
-    }
-
-
-    private String generateDiff(
-            String fileName, String original, String revised, int contextSize) {
-        List<String> originalLines = Arrays.asList(original.split("\\R"));
-        List<String> revisedLines = Arrays.asList(revised.split("\\R"));
-        Patch<String> patch = DiffUtils.diff(originalLines, revisedLines);
-        int safeContextSize = Math.max(0, contextSize);
-        List<String> unified =
-                UnifiedDiffUtils.generateUnifiedDiff(
-                        fileName + "_orig",
-                        fileName + "_rev",
-                        originalLines,
-                        patch,
-                        safeContextSize);
-        if (unified.isEmpty()) {
-            String content = DecompileService.CONTENT_NOT_READ.equals(original) ? original: NO_TEXTUAL_DIFFERENCES_MESSAGE;
-            unified =
-                    List.of(
-                            String.format("--- %s_orig", fileName),
-                            String.format("+++ %s_rev", fileName),
-                            "@@ -0,0 +0,0 @@",
-                            " " + content);
-        }
-        return String.join(System.lineSeparator(), unified) + System.lineSeparator();
     }
 }

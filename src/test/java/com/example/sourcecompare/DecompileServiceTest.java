@@ -1,8 +1,12 @@
 package com.example.sourcecompare;
 
+import com.example.sourcecompare.application.ArchiveDecompiler;
+import com.example.sourcecompare.domain.ArchiveInput;
+import com.example.sourcecompare.domain.FileInfo;
+import com.example.sourcecompare.infrastructure.DecompileService;
 import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockMultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -12,6 +16,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -49,7 +54,7 @@ class DecompileServiceTest {
                             return "delay-" + delay;
                         });
 
-        MockMultipartFile archive = zipFromEntries(entries);
+        ArchiveInput archive = archiveFromEntries(entries);
         Map<String, FileInfo> result = service.decompileClasses(archive);
 
         assertEquals(entries.size(), result.size());
@@ -68,7 +73,7 @@ class DecompileServiceTest {
                         int delay = Byte.toUnsignedInt(originalBytes[0]);
                         assertEquals("delay-" + delay, info.getContent());
                     } else if (placeholderEntries.contains(name)) {
-                        assertEquals("CONTENT_NOT_READ", info.getContent());
+                        assertEquals(ArchiveDecompiler.CONTENT_NOT_READ, info.getContent());
                     } else {
                         assertEquals(new String(originalBytes, StandardCharsets.UTF_8), info.getContent());
                     }
@@ -86,13 +91,12 @@ class DecompileServiceTest {
                     entryBytes(entrySize, (byte) (i & 0x7F)));
         }
 
-        byte[] zipBytes = createZipBytes(entries);
-        MockMultipartFile archive =
-                new MockMultipartFile("file", "classes.zip", "application/zip", zipBytes);
+        AtomicReference<byte[]> dataRef = new AtomicReference<>(createZipBytes(entries));
+        ArchiveInput archive =
+                new ArchiveInput("classes.zip", () -> new ByteArrayInputStream(dataRef.get()));
 
         // Allow the large helper structures to be reclaimed before measuring usage.
         entries = null;
-        zipBytes = null;
 
         TrackingDecompileService service =
                 new TrackingDecompileService(4, bytes -> "size-" + bytes.length);
@@ -103,6 +107,7 @@ class DecompileServiceTest {
 
         archive = null;
         result = null;
+        dataRef.set(null);
 
         long after = usedMemory();
         long delta = after - before;
@@ -120,8 +125,9 @@ class DecompileServiceTest {
                                 + service.getPeakActiveBytes());
     }
 
-    private static MockMultipartFile zipFromEntries(Map<String, byte[]> entries) throws IOException {
-        return new MockMultipartFile("file", "classes.zip", "application/zip", createZipBytes(entries));
+    private static ArchiveInput archiveFromEntries(Map<String, byte[]> entries) throws IOException {
+        byte[] bytes = createZipBytes(entries);
+        return new ArchiveInput("classes.zip", () -> new ByteArrayInputStream(bytes));
     }
 
     private static byte[] createZipBytes(Map<String, byte[]> entries) throws IOException {

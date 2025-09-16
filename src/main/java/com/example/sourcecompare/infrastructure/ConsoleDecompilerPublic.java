@@ -1,4 +1,4 @@
-package com.example.sourcecompare;
+package com.example.sourcecompare.infrastructure;
 
 import org.jetbrains.java.decompiler.main.decompiler.ConsoleDecompiler;
 import org.jetbrains.java.decompiler.main.extern.IFernflowerLogger;

@@ -1,4 +1,4 @@
-package com.example.sourcecompare;
+package com.example.sourcecompare.domain;
 
 import lombok.Getter;
 import lombok.Setter;
