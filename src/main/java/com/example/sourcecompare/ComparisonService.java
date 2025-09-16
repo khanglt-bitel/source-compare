@@ -171,10 +171,15 @@ public class ComparisonService {
         Iterator<Map.Entry<String, FileInfo>> delIt = deleted.entrySet().iterator();
         while (delIt.hasNext()) {
             Map.Entry<String, FileInfo> del = delIt.next();
+            FileInfo leftInfo = del.getValue();
             String bestName = null;
             double bestScore = 0.0;
             for (Map.Entry<String, FileInfo> add : added.entrySet()) {
-                double score = similarity(del.getValue().getContent(), add.getValue().getContent());
+                FileInfo rightInfo = add.getValue();
+                if (!isRenameCandidate(leftInfo, rightInfo)) {
+                    continue;
+                }
+                double score = similarity(leftInfo.getContent(), rightInfo.getContent());
                 if (score > 0.85 && score > bestScore) {
                     bestScore = score;
                     bestName = add.getKey();
@@ -182,7 +187,7 @@ public class ComparisonService {
             }
             if (bestName != null) {
                 FileInfo rightInfo = added.remove(bestName);
-                renames.put(del.getKey() + "->" + bestName, new FileInfo[]{del.getValue(), rightInfo});
+                renames.put(del.getKey() + "->" + bestName, new FileInfo[]{leftInfo, rightInfo});
                 delIt.remove();
             }
         }
@@ -236,16 +241,59 @@ public class ComparisonService {
     private double similarity(String a, String b) {
         List<String> aLines = Arrays.asList(a.split("\\R"));
         List<String> bLines = Arrays.asList(b.split("\\R"));
-        if (aLines.isEmpty() && bLines.isEmpty()) {
+        double firstHundredSimilarity = calculateSimilarity(aLines, bLines, 100);
+        if (firstHundredSimilarity < 0.2) {
+            return firstHundredSimilarity;
+        }
+        return calculateSimilarity(aLines, bLines, -1);
+    }
+
+    private double calculateSimilarity(List<String> aLines, List<String> bLines, int limit) {
+        List<String> leftLines = aLines;
+        List<String> rightLines = bLines;
+        if (limit > 0) {
+            leftLines = aLines.subList(0, Math.min(limit, aLines.size()));
+            rightLines = bLines.subList(0, Math.min(limit, bLines.size()));
+        }
+        if (leftLines.isEmpty() && rightLines.isEmpty()) {
             return 1.0;
         }
-        Patch<String> patch = DiffUtils.diff(aLines, bLines);
-        int total = Math.max(aLines.size(), bLines.size());
+        Patch<String> patch = DiffUtils.diff(leftLines, rightLines);
+        int total = Math.max(leftLines.size(), rightLines.size());
+        if (total == 0) {
+            return 1.0;
+        }
         int changes =
                 patch.getDeltas().stream()
                         .mapToInt(d -> Math.max(d.getSource().size(), d.getTarget().size()))
                         .sum();
         return 1.0 - (double) changes / total;
+    }
+
+    private boolean isRenameCandidate(FileInfo leftInfo, FileInfo rightInfo) {
+        if (!Objects.equals(getExtension(leftInfo.getName()), getExtension(rightInfo.getName()))) {
+            return false;
+        }
+        return hasSimilarSize(leftInfo.getContent(), rightInfo.getContent());
+    }
+
+    private String getExtension(String fileName) {
+        int lastSeparator = Math.max(fileName.lastIndexOf('/'), fileName.lastIndexOf('\\'));
+        int lastDot = fileName.lastIndexOf('.');
+        if (lastDot > lastSeparator) {
+            return fileName.substring(lastDot + 1).toLowerCase(Locale.ROOT);
+        }
+        return "";
+    }
+
+    private boolean hasSimilarSize(String leftContent, String rightContent) {
+        int leftLength = leftContent.length();
+        int rightLength = rightContent.length();
+        int maxLength = Math.max(leftLength, rightLength);
+        if (maxLength == 0) {
+            return true;
+        }
+        return Math.abs(leftLength - rightLength) <= maxLength * 0.2;
     }
 
 
