@@ -112,6 +112,45 @@
         animation: diff-highlight 2s ease-out;
     }
 
+    .diff-heading {
+        margin: 0 0 1rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+        font-size: 1.5rem;
+        font-weight: 600;
+        border-left: 4px solid transparent;
+    }
+
+    .diff-heading.diff-heading-added {
+        background-color: #d1e7dd;
+        color: #0f5132;
+        border-left-color: #198754;
+    }
+
+    .diff-heading.diff-heading-deleted {
+        background-color: #f8d7da;
+        color: #842029;
+        border-left-color: #dc3545;
+    }
+
+    .diff-heading.diff-heading-modified {
+        background-color: #cfe2ff;
+        color: #052c65;
+        border-left-color: #0d6efd;
+    }
+
+    .diff-heading.diff-heading-renamed {
+        background-color: #fff3cd;
+        color: #664d03;
+        border-left-color: #ffc107;
+    }
+
+    .diff-heading.diff-heading-unchanged {
+        background-color: #e2e3e5;
+        color: #41464b;
+        border-left-color: #6c757d;
+    }
+
     @keyframes diff-highlight {
         from {
             background-color: #fff3cd;
@@ -148,11 +187,11 @@
     let directoryIdCounter = 0;
 
     const STATUS_INFO = {
-        added: {label: 'Added', badgeClass: 'bg-success'},
-        deleted: {label: 'Deleted', badgeClass: 'bg-danger'},
-        modified: {label: 'Modified', badgeClass: 'bg-primary'},
-        renamed: {label: 'Renamed', badgeClass: 'bg-warning text-dark'},
-        unchanged: {label: 'Unchanged', badgeClass: 'bg-secondary'},
+        added: {label: 'Added', badgeClass: 'bg-success', headingClass: 'diff-heading-added'},
+        deleted: {label: 'Deleted', badgeClass: 'bg-danger', headingClass: 'diff-heading-deleted'},
+        modified: {label: 'Modified', badgeClass: 'bg-primary', headingClass: 'diff-heading-modified'},
+        renamed: {label: 'Renamed', badgeClass: 'bg-warning text-dark', headingClass: 'diff-heading-renamed'},
+        unchanged: {label: 'Unchanged', badgeClass: 'bg-secondary', headingClass: 'diff-heading-unchanged'},
     };
 
     function slugify(value) {
@@ -170,8 +209,14 @@
         container.id = item.id;
         container.className = 'diff-section mb-4';
 
+        const statusInfo = STATUS_INFO[item.status] || STATUS_INFO.modified;
+
         const heading = document.createElement('h3');
         heading.textContent = item.title;
+        heading.className = 'diff-heading';
+        if (statusInfo.headingClass) {
+            heading.classList.add(statusInfo.headingClass);
+        }
         container.appendChild(heading);
 
         let toggleButton = null;
