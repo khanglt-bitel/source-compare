@@ -101,6 +101,21 @@
                 />
                 <div class="form-text">Number of unchanged lines included around each diff hunk.</div>
             </div>
+            <div class="col-md-8 col-lg-5 d-flex align-items-end mt-3 mt-md-0">
+                <div>
+                    <div class="form-check mb-0">
+                        <input
+                                class="form-check-input"
+                                id="showUnchanged"
+                                name="showUnchanged"
+                                type="checkbox"
+                                value="true"
+                        />
+                        <label class="form-check-label" for="showUnchanged">Show unchanged files</label>
+                    </div>
+                    <div class="form-text">Include unchanged files in the comparison results.</div>
+                </div>
+            </div>
         </div>
         <button class="btn btn-primary" type="submit">Compare</button>
     </form>

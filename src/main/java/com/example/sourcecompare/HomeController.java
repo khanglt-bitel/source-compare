@@ -29,10 +29,11 @@ public class HomeController {
             @RequestParam("rightZip") MultipartFile rightZip,
             @RequestParam("mode") ComparisonMode mode,
             @RequestParam(name = "contextSize", defaultValue = "5") int contextSize,
+            @RequestParam(name = "showUnchanged", defaultValue = "false") boolean showUnchanged,
             Model model)
             throws IOException {
         ComparisonResult result =
-                comparisonService.compare(leftZip, rightZip, mode, contextSize);
+                comparisonService.compare(leftZip, rightZip, mode, contextSize, showUnchanged);
         model.addAttribute(
                 "message",
                 String.format(
