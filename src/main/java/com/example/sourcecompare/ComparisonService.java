@@ -159,7 +159,7 @@ public class ComparisonService {
         Map<String, FileInfo> added = new LinkedHashMap<>();
         Map<String, FileInfo> deleted = new LinkedHashMap<>();
         Map<String, FileInfo[]> modified = new LinkedHashMap<>();
-        List<String> unchanged = includeUnchanged ? new ArrayList<>() : null;
+        List<String> unchanged = new ArrayList<>();
 
         Set<String> allNames = new TreeSet<>();
         allNames.addAll(left.keySet());
