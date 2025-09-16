@@ -30,18 +30,27 @@ public class ComparisonService {
             MultipartFile leftZip,
             MultipartFile rightZip,
             ComparisonMode mode,
-            int contextSize)
+            int contextSize,
+            boolean includeUnchanged)
             throws IOException {
         int normalizedContextSize = Math.max(0, contextSize);
         return switch (mode) {
-            case CLASS_VS_SOURCE -> compareClassToSource(leftZip, rightZip, normalizedContextSize);
-            case CLASS_VS_CLASS -> compareClassToClass(leftZip, rightZip, normalizedContextSize);
-            case SOURCE_VS_SOURCE -> compareSourceToSource(leftZip, rightZip, normalizedContextSize);
+            case CLASS_VS_SOURCE ->
+                    compareClassToSource(
+                            leftZip, rightZip, normalizedContextSize, includeUnchanged);
+            case CLASS_VS_CLASS ->
+                    compareClassToClass(leftZip, rightZip, normalizedContextSize, includeUnchanged);
+            case SOURCE_VS_SOURCE ->
+                    compareSourceToSource(leftZip, rightZip, normalizedContextSize, includeUnchanged);
         };
     }
 
     private ComparisonResult compareClassToSource(
-            MultipartFile classZip, MultipartFile sourceZip, int contextSize) throws IOException {
+            MultipartFile classZip,
+            MultipartFile sourceZip,
+            int contextSize,
+            boolean includeUnchanged)
+            throws IOException {
         Map<String, FileInfo> leftRaw = decompileService.decompileClasses(classZip);
         Map<String, FileInfo> rightRaw = readSources(sourceZip);
 
@@ -55,11 +64,11 @@ public class ComparisonService {
             String name = e.getKey();
             right.put(name, new FileInfo(name, googleFormatService.normalizeJava(e.getValue().getContent())));
         }
-        return diffFileMaps(left, right, contextSize);
+        return diffFileMaps(left, right, contextSize, includeUnchanged);
     }
 
     private ComparisonResult compareClassToClass(
-            MultipartFile leftZip, MultipartFile rightZip, int contextSize) {
+            MultipartFile leftZip, MultipartFile rightZip, int contextSize, boolean includeUnchanged) {
         CompletableFuture<Map<String, FileInfo>> leftFuture =
                 CompletableFuture.supplyAsync(
                         () -> {
@@ -80,7 +89,7 @@ public class ComparisonService {
                         });
         Map<String, FileInfo> left = leftFuture.join();
         Map<String, FileInfo> right = rightFuture.join();
-        return diffFileMaps(left, right, contextSize);
+        return diffFileMaps(left, right, contextSize, includeUnchanged);
     }
 
     private Map<String, FileInfo> decompileAndFormat(MultipartFile zip)
@@ -97,7 +106,11 @@ public class ComparisonService {
     }
 
     private ComparisonResult compareSourceToSource(
-            MultipartFile leftZip, MultipartFile rightZip, int contextSize) throws IOException {
+            MultipartFile leftZip,
+            MultipartFile rightZip,
+            int contextSize,
+            boolean includeUnchanged)
+            throws IOException {
         long start = System.currentTimeMillis();
         Map<String, FileInfo> leftRaw = readSources(leftZip);
         Map<String, FileInfo> rightRaw = readSources(rightZip);
@@ -116,7 +129,7 @@ public class ComparisonService {
                 .forEach(fi -> right.put(fi.getName(), fi));
         log.info("Step 3: Execute right:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
-        ComparisonResult result = diffFileMaps(left, right, contextSize);
+        ComparisonResult result = diffFileMaps(left, right, contextSize, includeUnchanged);
 
         log.info("Step 4: Compare:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
 
@@ -138,7 +151,10 @@ public class ComparisonService {
     }
 
     private ComparisonResult diffFileMaps(
-            Map<String, FileInfo> left, Map<String, FileInfo> right, int contextSize) {
+            Map<String, FileInfo> left,
+            Map<String, FileInfo> right,
+            int contextSize,
+            boolean includeUnchanged) {
         long start = System.currentTimeMillis();
         Map<String, FileInfo> added = new LinkedHashMap<>();
         Map<String, FileInfo> deleted = new LinkedHashMap<>();
@@ -161,7 +177,9 @@ public class ComparisonService {
                 if (!Objects.equals(l.getContent(), r.getContent())) {
                     modified.put(name, new FileInfo[]{l, r});
                 } else {
-                    unchanged.add(name);
+                    if (includeUnchanged) {
+                        unchanged.add(name);
+                    }
                 }
             }
         }
@@ -235,7 +253,11 @@ public class ComparisonService {
         renamedDiffs.sort(Comparator.comparing(RenameInfo::getTo));
         log.info("Step 4: diffFileMaps:{}", (System.currentTimeMillis() - start) / 1000);
         return new ComparisonResult(
-                addedDiffs, deletedDiffs, modifiedDiffs, renamedDiffs, unchanged);
+                addedDiffs,
+                deletedDiffs,
+                modifiedDiffs,
+                renamedDiffs,
+                includeUnchanged ? unchanged : null);
     }
 
     private double similarity(String a, String b) {
