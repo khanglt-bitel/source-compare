@@ -26,6 +26,9 @@ class DecompileServiceTest {
         Map<String, byte[]> entries = new LinkedHashMap<>();
         entries.put("pkg/Foo.class", new byte[] {(byte) 30});
         entries.put("pkg/readme.txt", "resource".getBytes(StandardCharsets.UTF_8));
+        entries.put("pkg/page.html", "<html/>".getBytes(StandardCharsets.UTF_8));
+        entries.put("pkg/layout.xml", "<xml/>".getBytes(StandardCharsets.UTF_8));
+        entries.put("pkg/config.properties", "foo=bar".getBytes(StandardCharsets.UTF_8));
         entries.put("pkg/archive.tar", new byte[] {1, 2, 3});
         entries.put("pkg/picture.jpg", new byte[] {4});
         entries.put("pkg/docs/report.pdf", new byte[] {5, 6});
@@ -52,7 +55,10 @@ class DecompileServiceTest {
         assertEquals(entries.size(), result.size());
         assertIterableEquals(entries.keySet(), result.keySet(), "Decompiled files should follow ZIP order");
         Set<String> placeholderEntries =
-                Set.of("pkg/archive.tar", "pkg/picture.jpg", "pkg/docs/report.pdf");
+                Set.of(
+                        "pkg/archive.tar",
+                        "pkg/picture.jpg",
+                        "pkg/docs/report.pdf");
 
         result.forEach(
                 (name, info) -> {

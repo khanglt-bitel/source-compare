@@ -63,15 +63,15 @@ public class DecompileService {
                                 }
                             });
                     submittedTasks++;
-                } else if (shouldUsePlaceholder(lowerCaseName)) {
-                    drainEntry(zis);
-                    zis.closeEntry();
-                    unorderedResults.put(entryName, new FileInfo(entryName, CONTENT_NOT_READ));
-                } else {
+                } else if (isHumanReadable(lowerCaseName)) {
                     byte[] entryBytes = zis.readAllBytes();
                     zis.closeEntry();
                     unorderedResults.put(
                             entryName, new FileInfo(entryName, new String(entryBytes, StandardCharsets.UTF_8)));
+                } else {
+                    drainEntry(zis);
+                    zis.closeEntry();
+                    unorderedResults.put(entryName, new FileInfo(entryName, CONTENT_NOT_READ));
                 }
             }
         }
@@ -166,37 +166,66 @@ public class DecompileService {
 
     private static final String CONTENT_NOT_READ = "CONTENT_NOT_READ";
 
-    private static final List<String> PLACEHOLDER_SUFFIXES =
-            List.of(
-                    ".tar",
-                    ".zip",
-                    ".gz",
-                    ".tgz",
-                    ".rar",
-                    ".7z",
-                    ".bz2",
-                    ".xz",
-                    ".png",
-                    ".jpg",
-                    ".jpeg",
-                    ".gif",
-                    ".bmp",
-                    ".tif",
-                    ".tiff",
-                    ".webp",
-                    ".heic",
-                    ".xlsx",
-                    ".xls",
-                    ".xlsm",
-                    ".doc",
-                    ".docx",
-                    ".ppt",
-                    ".pptx",
-                    ".pdf",
-                    ".word");
+    private static final Set<String> HUMAN_READABLE_SUFFIXES =
+            Set.of(
+                    ".bat",
+                    ".bash",
+                    ".c",
+                    ".cc",
+                    ".cfg",
+                    ".conf",
+                    ".cpp",
+                    ".css",
+                    ".cs",
+                    ".csv",
+                    ".ftl",
+                    ".go",
+                    ".gradle",
+                    ".groovy",
+                    ".h",
+                    ".hpp",
+                    ".htm",
+                    ".html",
+                    ".ini",
+                    ".java",
+                    ".js",
+                    ".json",
+                    ".jsp",
+                    ".jspx",
+                    ".jsx",
+                    ".kt",
+                    ".kts",
+                    ".less",
+                    ".log",
+                    ".manifest",
+                    ".markdown",
+                    ".md",
+                    ".mf",
+                    ".pom",
+                    ".properties",
+                    ".ps1",
+                    ".py",
+                    ".rb",
+                    ".scala",
+                    ".scss",
+                    ".sh",
+                    ".sql",
+                    ".swift",
+                    ".ts",
+                    ".tsv",
+                    ".tsx",
+                    ".txt",
+                    ".vm",
+                    ".xhtml",
+                    ".xml",
+                    ".xsd",
+                    ".xsl",
+                    ".xslt",
+                    ".yaml",
+                    ".yml");
 
-    private static boolean shouldUsePlaceholder(String lowerCaseName) {
-        for (String suffix : PLACEHOLDER_SUFFIXES) {
+    private static boolean isHumanReadable(String lowerCaseName) {
+        for (String suffix : HUMAN_READABLE_SUFFIXES) {
             if (lowerCaseName.endsWith(suffix)) {
                 return true;
             }
