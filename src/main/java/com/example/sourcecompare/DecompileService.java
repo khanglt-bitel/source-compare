@@ -164,7 +164,7 @@ public class DecompileService {
         }
     }
 
-    private static final String CONTENT_NOT_READ = "CONTENT_NOT_READ";
+    public static final String CONTENT_NOT_READ = "CONTENT_NOT_READ";
 
     private static final Set<String> HUMAN_READABLE_SUFFIXES =
             Set.of(

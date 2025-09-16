@@ -334,12 +334,13 @@ public class ComparisonService {
                         patch,
                         safeContextSize);
         if (unified.isEmpty()) {
+            String content = DecompileService.CONTENT_NOT_READ.equals(original) ? original: NO_TEXTUAL_DIFFERENCES_MESSAGE;
             unified =
                     List.of(
                             String.format("--- %s_orig", fileName),
                             String.format("+++ %s_rev", fileName),
                             "@@ -0,0 +0,0 @@",
-                            " " + NO_TEXTUAL_DIFFERENCES_MESSAGE);
+                            " " + content);
         }
         return String.join(System.lineSeparator(), unified) + System.lineSeparator();
     }
