@@ -19,6 +19,7 @@ import java.util.zip.ZipInputStream;
 @Service
 public class ComparisonService {
     private static final Logger log = LogManager.getLogger(ComparisonService.class);
+    private static final String NO_TEXTUAL_DIFFERENCES_MESSAGE = "No textual differences available.";
     @Autowired
     private GoogleFormatService googleFormatService;
     @Autowired
@@ -332,6 +333,14 @@ public class ComparisonService {
                         originalLines,
                         patch,
                         safeContextSize);
+        if (unified.isEmpty()) {
+            unified =
+                    List.of(
+                            String.format("--- %s_orig", fileName),
+                            String.format("+++ %s_rev", fileName),
+                            "@@ -0,0 +0,0 @@",
+                            " " + NO_TEXTUAL_DIFFERENCES_MESSAGE);
+        }
         return String.join(System.lineSeparator(), unified) + System.lineSeparator();
     }
 }
