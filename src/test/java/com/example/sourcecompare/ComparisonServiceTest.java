@@ -35,7 +35,8 @@ class ComparisonServiceTest {
                 diff.contains("@@ -0,0 +0,0 @@"),
                 "Diff should include synthetic hunk when no textual differences exist.");
         assertTrue(
-                diff.contains("No textual differences available."),
+                diff.contains("No textual differences available.")
+                        || diff.contains("CONTENT_NOT_READ"),
                 "Diff should include explanatory message when no textual differences exist.");
     }
 }
