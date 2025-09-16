@@ -224,14 +224,17 @@ public class DecompileService {
                     ".yaml",
                     ".yml");
 
-    private static boolean isHumanReadable(String lowerCaseName) {
-        for (String suffix : HUMAN_READABLE_SUFFIXES) {
-            if (lowerCaseName.endsWith(suffix)) {
-                return true;
-            }
+    private static boolean isHumanReadable(String fileName) {
+        // Extract extension (after last '.')
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex == -1 || dotIndex == fileName.length() - 1) {
+            return false; // no extension
         }
-        return false;
+
+        String extension = fileName.substring(dotIndex + 1).toLowerCase();
+        return HUMAN_READABLE_SUFFIXES.contains(extension);
     }
+
 
     private static void drainEntry(ZipInputStream zis) throws IOException {
         byte[] buffer = new byte[8192];
