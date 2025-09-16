@@ -5,6 +5,9 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -50,6 +53,7 @@ class DecompileServiceTest {
                     assertEquals(name, info.getName());
                     int delay = Byte.toUnsignedInt(entries.get(name)[0]);
                     assertEquals("delay-" + delay, info.getContent());
+                    assertEquals(sha1("delay-" + delay), info.getHash());
                 });
     }
 
@@ -156,6 +160,20 @@ class DecompileServiceTest {
 
         private long getPeakActiveBytes() {
             return peakBytes.get();
+        }
+    }
+
+    private static String sha1(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-1");
+            byte[] hashBytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(hashBytes.length * 2);
+            for (byte b : hashBytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
         }
     }
 }

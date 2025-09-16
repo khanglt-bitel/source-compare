@@ -161,12 +161,43 @@ public class ComparisonService {
         log.info("Step 1: diffFileMaps:{}", (System.currentTimeMillis() - start) / 1000);
 
         Map<String, FileInfo[]> renames = new LinkedHashMap<>();
+
+        Map<String, Deque<String>> addedByHash = new HashMap<>();
+        for (Map.Entry<String, FileInfo> addEntry : added.entrySet()) {
+            addedByHash
+                    .computeIfAbsent(addEntry.getValue().getHash(), key -> new ArrayDeque<>())
+                    .add(addEntry.getKey());
+        }
+
         Iterator<Map.Entry<String, FileInfo>> delIt = deleted.entrySet().iterator();
+        while (delIt.hasNext()) {
+            Map.Entry<String, FileInfo> del = delIt.next();
+            Deque<String> candidates = addedByHash.get(del.getValue().getHash());
+            while (candidates != null && !candidates.isEmpty()) {
+                String candidateName = candidates.removeFirst();
+                FileInfo candidateInfo = added.remove(candidateName);
+                if (candidateInfo != null) {
+                    renames.put(
+                            del.getKey() + "->" + candidateName,
+                            new FileInfo[]{del.getValue(), candidateInfo});
+                    delIt.remove();
+                    if (candidates.isEmpty()) {
+                        addedByHash.remove(del.getValue().getHash());
+                    }
+                    break;
+                }
+            }
+        }
+
+        delIt = deleted.entrySet().iterator();
         while (delIt.hasNext()) {
             Map.Entry<String, FileInfo> del = delIt.next();
             String bestName = null;
             double bestScore = 0.0;
             for (Map.Entry<String, FileInfo> add : added.entrySet()) {
+                if (!isPotentialRename(del.getValue(), add.getValue())) {
+                    continue;
+                }
                 double score = similarity(del.getValue().getContent(), add.getValue().getContent());
                 if (score > 0.85 && score > bestScore) {
                     bestScore = score;
@@ -214,6 +245,18 @@ public class ComparisonService {
         log.info("Step 4: diffFileMaps:{}", (System.currentTimeMillis() - start) / 1000);
         return new ComparisonResult(
                 addedDiffs, deletedDiffs, modifiedDiffs, renamedDiffs, unchanged);
+    }
+
+    private boolean isPotentialRename(FileInfo leftInfo, FileInfo rightInfo) {
+        int leftSize = leftInfo.getNormalizedSize();
+        int rightSize = rightInfo.getNormalizedSize();
+        int diff = Math.abs(leftSize - rightSize);
+        int max = Math.max(leftSize, rightSize);
+        if (max == 0) {
+            return true;
+        }
+        int threshold = Math.max(80, (int) (max * 0.35));
+        return diff <= threshold;
     }
 
     private double similarity(String a, String b) {
