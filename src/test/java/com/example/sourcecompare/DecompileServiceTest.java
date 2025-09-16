@@ -5,6 +5,7 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -23,6 +24,7 @@ class DecompileServiceTest {
     void decompileClassesPreservesZipOrder() throws IOException {
         Map<String, byte[]> entries = new LinkedHashMap<>();
         entries.put("pkg/Foo.class", new byte[] {(byte) 30});
+        entries.put("pkg/readme.txt", "resource".getBytes(StandardCharsets.UTF_8));
         entries.put("pkg/Bar.class", new byte[] {(byte) 5});
         entries.put("pkg/Baz.class", new byte[] {(byte) 10});
 
@@ -48,8 +50,13 @@ class DecompileServiceTest {
         result.forEach(
                 (name, info) -> {
                     assertEquals(name, info.getName());
-                    int delay = Byte.toUnsignedInt(entries.get(name)[0]);
-                    assertEquals("delay-" + delay, info.getContent());
+                    byte[] originalBytes = entries.get(name);
+                    if (name.endsWith(".class")) {
+                        int delay = Byte.toUnsignedInt(originalBytes[0]);
+                        assertEquals("delay-" + delay, info.getContent());
+                    } else {
+                        assertEquals(new String(originalBytes, StandardCharsets.UTF_8), info.getContent());
+                    }
                 });
     }
 

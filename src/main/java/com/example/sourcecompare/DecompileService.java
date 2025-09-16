@@ -10,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -35,38 +36,40 @@ public class DecompileService {
                 new ExecutorCompletionService<>(executor);
 
         List<String> entryOrder = new ArrayList<>();
+        Map<String, FileInfo> unorderedResults = new HashMap<>();
         int submittedTasks = 0;
 
         try (ZipInputStream zis = new ZipInputStream(zip.getInputStream())) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
-                if (entry.isDirectory() || !entry.getName().endsWith(".class")) {
+                if (entry.isDirectory()) {
                     continue;
                 }
 
                 String entryName = entry.getName();
                 entryOrder.add(entryName);
-                byte[] classBytes = zis.readAllBytes();
+                byte[] entryBytes = zis.readAllBytes();
                 zis.closeEntry();
 
-                completionService.submit(
-                        () -> {
-                            try {
-                                FileInfo info = new FileInfo(entryName, decompile(classBytes));
-                                return Map.entry(entryName, info);
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        });
-                submittedTasks++;
+                if (entryName.endsWith(".class")) {
+                    byte[] classBytes = entryBytes;
+                    completionService.submit(
+                            () -> {
+                                try {
+                                    FileInfo info = new FileInfo(entryName, decompile(classBytes));
+                                    return Map.entry(entryName, info);
+                                } catch (IOException e) {
+                                    throw new UncheckedIOException(e);
+                                }
+                            });
+                    submittedTasks++;
+                } else {
+                    unorderedResults.put(
+                            entryName, new FileInfo(entryName, new String(entryBytes, StandardCharsets.UTF_8)));
+                }
             }
         }
 
-        if (submittedTasks == 0) {
-            return new HashMap<>();
-        }
-
-        Map<String, FileInfo> unorderedResults = new HashMap<>();
         for (int i = 0; i < submittedTasks; i++) {
             try {
                 Future<Map.Entry<String, FileInfo>> future = completionService.take();
