@@ -69,8 +69,8 @@ public class DecompileService {
                     unorderedResults.put(
                             entryName, new FileInfo(entryName, new String(entryBytes, StandardCharsets.UTF_8)));
                 } else {
-                    drainEntry(zis);
-                    zis.closeEntry();
+//                    drainEntry(zis);
+//                    zis.closeEntry();
                     unorderedResults.put(entryName, new FileInfo(entryName, CONTENT_NOT_READ));
                 }
             }
@@ -231,7 +231,7 @@ public class DecompileService {
             return false; // no extension
         }
 
-        String extension = fileName.substring(dotIndex + 1).toLowerCase();
+        String extension = fileName.substring(dotIndex).toLowerCase();
         return HUMAN_READABLE_SUFFIXES.contains(extension);
     }
 
