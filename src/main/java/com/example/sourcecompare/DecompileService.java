@@ -48,11 +48,11 @@ public class DecompileService {
 
                 String entryName = entry.getName();
                 entryOrder.add(entryName);
-                byte[] entryBytes = zis.readAllBytes();
-                zis.closeEntry();
 
-                if (entryName.endsWith(".class")) {
-                    byte[] classBytes = entryBytes;
+                String lowerCaseName = entryName.toLowerCase(Locale.ROOT);
+                if (lowerCaseName.endsWith(".class")) {
+                    byte[] classBytes = zis.readAllBytes();
+                    zis.closeEntry();
                     completionService.submit(
                             () -> {
                                 try {
@@ -63,7 +63,13 @@ public class DecompileService {
                                 }
                             });
                     submittedTasks++;
+                } else if (shouldUsePlaceholder(lowerCaseName)) {
+                    drainEntry(zis);
+                    zis.closeEntry();
+                    unorderedResults.put(entryName, new FileInfo(entryName, CONTENT_NOT_READ));
                 } else {
+                    byte[] entryBytes = zis.readAllBytes();
+                    zis.closeEntry();
                     unorderedResults.put(
                             entryName, new FileInfo(entryName, new String(entryBytes, StandardCharsets.UTF_8)));
                 }
@@ -155,6 +161,53 @@ public class DecompileService {
             stream.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
         } catch (IOException ignored) {
             // Best-effort cleanup
+        }
+    }
+
+    private static final String CONTENT_NOT_READ = "CONTENT_NOT_READ";
+
+    private static final List<String> PLACEHOLDER_SUFFIXES =
+            List.of(
+                    ".tar",
+                    ".zip",
+                    ".gz",
+                    ".tgz",
+                    ".rar",
+                    ".7z",
+                    ".bz2",
+                    ".xz",
+                    ".png",
+                    ".jpg",
+                    ".jpeg",
+                    ".gif",
+                    ".bmp",
+                    ".tif",
+                    ".tiff",
+                    ".webp",
+                    ".heic",
+                    ".xlsx",
+                    ".xls",
+                    ".xlsm",
+                    ".doc",
+                    ".docx",
+                    ".ppt",
+                    ".pptx",
+                    ".pdf",
+                    ".word");
+
+    private static boolean shouldUsePlaceholder(String lowerCaseName) {
+        for (String suffix : PLACEHOLDER_SUFFIXES) {
+            if (lowerCaseName.endsWith(suffix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void drainEntry(ZipInputStream zis) throws IOException {
+        byte[] buffer = new byte[8192];
+        while (zis.read(buffer) != -1) {
+            // discard
         }
     }
 }
