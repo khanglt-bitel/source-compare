@@ -10,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -35,38 +36,46 @@ public class DecompileService {
                 new ExecutorCompletionService<>(executor);
 
         List<String> entryOrder = new ArrayList<>();
+        Map<String, FileInfo> unorderedResults = new HashMap<>();
         int submittedTasks = 0;
 
         try (ZipInputStream zis = new ZipInputStream(zip.getInputStream())) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
-                if (entry.isDirectory() || !entry.getName().endsWith(".class")) {
+                if (entry.isDirectory()) {
                     continue;
                 }
 
                 String entryName = entry.getName();
                 entryOrder.add(entryName);
-                byte[] classBytes = zis.readAllBytes();
-                zis.closeEntry();
 
-                completionService.submit(
-                        () -> {
-                            try {
-                                FileInfo info = new FileInfo(entryName, decompile(classBytes));
-                                return Map.entry(entryName, info);
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        });
-                submittedTasks++;
+                String lowerCaseName = entryName.toLowerCase(Locale.ROOT);
+                if (lowerCaseName.endsWith(".class")) {
+                    byte[] classBytes = zis.readAllBytes();
+                    zis.closeEntry();
+                    completionService.submit(
+                            () -> {
+                                try {
+                                    FileInfo info = new FileInfo(entryName, decompile(classBytes));
+                                    return Map.entry(entryName, info);
+                                } catch (IOException e) {
+                                    throw new UncheckedIOException(e);
+                                }
+                            });
+                    submittedTasks++;
+                } else if (isHumanReadable(lowerCaseName)) {
+                    byte[] entryBytes = zis.readAllBytes();
+                    zis.closeEntry();
+                    unorderedResults.put(
+                            entryName, new FileInfo(entryName, new String(entryBytes, StandardCharsets.UTF_8)));
+                } else {
+//                    drainEntry(zis);
+//                    zis.closeEntry();
+                    unorderedResults.put(entryName, new FileInfo(entryName, CONTENT_NOT_READ));
+                }
             }
         }
 
-        if (submittedTasks == 0) {
-            return new HashMap<>();
-        }
-
-        Map<String, FileInfo> unorderedResults = new HashMap<>();
         for (int i = 0; i < submittedTasks; i++) {
             try {
                 Future<Map.Entry<String, FileInfo>> future = completionService.take();
@@ -152,6 +161,85 @@ public class DecompileService {
             stream.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
         } catch (IOException ignored) {
             // Best-effort cleanup
+        }
+    }
+
+    private static final String CONTENT_NOT_READ = "CONTENT_NOT_READ";
+
+    private static final Set<String> HUMAN_READABLE_SUFFIXES =
+            Set.of(
+                    ".bat",
+                    ".bash",
+                    ".c",
+                    ".cc",
+                    ".cfg",
+                    ".conf",
+                    ".cpp",
+                    ".css",
+                    ".cs",
+                    ".csv",
+                    ".ftl",
+                    ".go",
+                    ".gradle",
+                    ".groovy",
+                    ".h",
+                    ".hpp",
+                    ".htm",
+                    ".html",
+                    ".ini",
+                    ".java",
+                    ".js",
+                    ".json",
+                    ".jsp",
+                    ".jspx",
+                    ".jsx",
+                    ".kt",
+                    ".kts",
+                    ".less",
+                    ".log",
+                    ".manifest",
+                    ".markdown",
+                    ".md",
+                    ".mf",
+                    ".pom",
+                    ".properties",
+                    ".ps1",
+                    ".py",
+                    ".rb",
+                    ".scala",
+                    ".scss",
+                    ".sh",
+                    ".sql",
+                    ".swift",
+                    ".ts",
+                    ".tsv",
+                    ".tsx",
+                    ".txt",
+                    ".vm",
+                    ".xhtml",
+                    ".xml",
+                    ".xsd",
+                    ".xsl",
+                    ".xslt",
+                    ".yaml",
+                    ".yml");
+
+    private static boolean isHumanReadable(String fileName) {
+        // Extract extension (after last '.')
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex == -1 || dotIndex == fileName.length() - 1) {
+            return false; // no extension
+        }
+
+        String extension = fileName.substring(dotIndex).toLowerCase();
+        return HUMAN_READABLE_SUFFIXES.contains(extension);
+    }
+
+
+    private static void drainEntry(ZipInputStream zis) throws IOException {
+        byte[] buffer = new byte[8192];
+        while (zis.read(buffer) != -1) {
+            // discard
         }
     }
 }

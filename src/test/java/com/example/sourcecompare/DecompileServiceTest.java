@@ -5,9 +5,11 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.ZipEntry;
@@ -23,6 +25,13 @@ class DecompileServiceTest {
     void decompileClassesPreservesZipOrder() throws IOException {
         Map<String, byte[]> entries = new LinkedHashMap<>();
         entries.put("pkg/Foo.class", new byte[] {(byte) 30});
+        entries.put("pkg/readme.txt", "resource".getBytes(StandardCharsets.UTF_8));
+        entries.put("pkg/page.html", "<html/>".getBytes(StandardCharsets.UTF_8));
+        entries.put("pkg/layout.xml", "<xml/>".getBytes(StandardCharsets.UTF_8));
+        entries.put("pkg/config.properties", "foo=bar".getBytes(StandardCharsets.UTF_8));
+        entries.put("pkg/archive.tar", new byte[] {1, 2, 3});
+        entries.put("pkg/picture.jpg", new byte[] {4});
+        entries.put("pkg/docs/report.pdf", new byte[] {5, 6});
         entries.put("pkg/Bar.class", new byte[] {(byte) 5});
         entries.put("pkg/Baz.class", new byte[] {(byte) 10});
 
@@ -45,11 +54,24 @@ class DecompileServiceTest {
 
         assertEquals(entries.size(), result.size());
         assertIterableEquals(entries.keySet(), result.keySet(), "Decompiled files should follow ZIP order");
+        Set<String> placeholderEntries =
+                Set.of(
+                        "pkg/archive.tar",
+                        "pkg/picture.jpg",
+                        "pkg/docs/report.pdf");
+
         result.forEach(
                 (name, info) -> {
                     assertEquals(name, info.getName());
-                    int delay = Byte.toUnsignedInt(entries.get(name)[0]);
-                    assertEquals("delay-" + delay, info.getContent());
+                    byte[] originalBytes = entries.get(name);
+                    if (name.endsWith(".class")) {
+                        int delay = Byte.toUnsignedInt(originalBytes[0]);
+                        assertEquals("delay-" + delay, info.getContent());
+                    } else if (placeholderEntries.contains(name)) {
+                        assertEquals("CONTENT_NOT_READ", info.getContent());
+                    } else {
+                        assertEquals(new String(originalBytes, StandardCharsets.UTF_8), info.getContent());
+                    }
                 });
     }
 
