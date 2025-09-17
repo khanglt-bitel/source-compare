@@ -3,9 +3,11 @@ package com.example.sourcecompare.application;
 import com.example.sourcecompare.domain.ArchiveInput;
 import com.example.sourcecompare.domain.ComparisonRequest;
 import com.example.sourcecompare.domain.ComparisonResult;
+import com.example.sourcecompare.domain.ComparisonTiming;
 import com.example.sourcecompare.domain.DiffInfo;
 import com.example.sourcecompare.domain.FileInfo;
 import com.example.sourcecompare.domain.RenameInfo;
+import com.example.sourcecompare.domain.StepTiming;
 import com.github.difflib.DiffUtils;
 import com.github.difflib.patch.Patch;
 import org.apache.logging.log4j.LogManager;
@@ -40,39 +42,78 @@ public class ComparisonUseCase {
         this.diffRenderer = diffRenderer;
     }
 
+    private static double nanosToSeconds(long nanos) {
+        return nanos / 1_000_000_000.0;
+    }
+
+    private double recordStep(List<StepTiming> timings, String label, long startNanos) {
+        long duration = System.nanoTime() - startNanos;
+        double seconds = nanosToSeconds(duration);
+        if (timings != null) {
+            timings.add(new StepTiming(label, seconds));
+        }
+        return seconds;
+    }
+
     public ComparisonResult compare(ComparisonRequest request) throws IOException {
         int normalizedContextSize = Math.max(0, request.contextSize());
-        return switch (request.mode()) {
+        List<StepTiming> timings = Collections.synchronizedList(new ArrayList<>());
+        long overallStart = System.nanoTime();
+
+        ComparisonResult result;
+        switch (request.mode()) {
             case CLASS_VS_SOURCE ->
-                    compareClassToSource(
-                            request.left(),
-                            request.right(),
-                            normalizedContextSize,
-                            request.includeUnchanged());
+                    result =
+                            compareClassToSource(
+                                    request.left(),
+                                    request.right(),
+                                    normalizedContextSize,
+                                    request.includeUnchanged(),
+                                    timings);
             case CLASS_VS_CLASS ->
-                    compareClassToClass(
-                            request.left(),
-                            request.right(),
-                            normalizedContextSize,
-                            request.includeUnchanged());
+                    result =
+                            compareClassToClass(
+                                    request.left(),
+                                    request.right(),
+                                    normalizedContextSize,
+                                    request.includeUnchanged(),
+                                    timings);
             case SOURCE_VS_SOURCE ->
-                    compareSourceToSource(
-                            request.left(),
-                            request.right(),
-                            normalizedContextSize,
-                            request.includeUnchanged());
-        };
+                    result =
+                            compareSourceToSource(
+                                    request.left(),
+                                    request.right(),
+                                    normalizedContextSize,
+                                    request.includeUnchanged(),
+                                    timings);
+            default -> throw new IllegalStateException("Unexpected comparison mode " + request.mode());
+        }
+
+        double totalSeconds = nanosToSeconds(System.nanoTime() - overallStart);
+        List<StepTiming> stepSnapshot;
+        synchronized (timings) {
+            stepSnapshot = List.copyOf(timings);
+        }
+        result.setTiming(new ComparisonTiming(stepSnapshot, totalSeconds));
+        return result;
     }
 
     private ComparisonResult compareClassToSource(
             ArchiveInput classArchive,
             ArchiveInput sourceArchive,
             int contextSize,
-            boolean includeUnchanged)
+            boolean includeUnchanged,
+            List<StepTiming> timings)
             throws IOException {
+        long leftDecompileStart = System.nanoTime();
         Map<String, FileInfo> leftRaw = archiveDecompiler.decompileClasses(classArchive);
-        Map<String, FileInfo> rightRaw = readSources(sourceArchive);
+        recordStep(timings, "Decompile classes (left)", leftDecompileStart);
 
+        long rightReadStart = System.nanoTime();
+        Map<String, FileInfo> rightRaw = readSources(sourceArchive);
+        recordStep(timings, "Read sources (right)", rightReadStart);
+
+        long leftNormalizeStart = System.nanoTime();
         Map<String, FileInfo> left = new HashMap<>();
         for (Map.Entry<String, FileInfo> e : leftRaw.entrySet()) {
             String name = e.getKey().replace(".class", ".java");
@@ -82,6 +123,9 @@ public class ComparisonUseCase {
                             name,
                             javaSourceNormalizer.normalizeJava(e.getValue().getContent())));
         }
+        recordStep(timings, "Normalize decompiled sources (left)", leftNormalizeStart);
+
+        long rightNormalizeStart = System.nanoTime();
         Map<String, FileInfo> right = new HashMap<>();
         for (Map.Entry<String, FileInfo> e : rightRaw.entrySet()) {
             String name = e.getKey();
@@ -91,19 +135,22 @@ public class ComparisonUseCase {
                             name,
                             javaSourceNormalizer.normalizeJava(e.getValue().getContent())));
         }
-        return diffFileMaps(left, right, contextSize, includeUnchanged);
+        recordStep(timings, "Normalize sources (right)", rightNormalizeStart);
+
+        return diffFileMaps(left, right, contextSize, includeUnchanged, timings);
     }
 
     private ComparisonResult compareClassToClass(
             ArchiveInput leftArchive,
             ArchiveInput rightArchive,
             int contextSize,
-            boolean includeUnchanged) {
+            boolean includeUnchanged,
+            List<StepTiming> timings) {
         CompletableFuture<Map<String, FileInfo>> leftFuture =
                 CompletableFuture.supplyAsync(
                         () -> {
                             try {
-                                return decompileAndFormat(leftArchive);
+                                return decompileAndFormat(leftArchive, "left", timings);
                             } catch (IOException e) {
                                 throw new CompletionException(e);
                             }
@@ -112,25 +159,30 @@ public class ComparisonUseCase {
                 CompletableFuture.supplyAsync(
                         () -> {
                             try {
-                                return decompileAndFormat(rightArchive);
+                                return decompileAndFormat(rightArchive, "right", timings);
                             } catch (IOException e) {
                                 throw new CompletionException(e);
                             }
                         });
         Map<String, FileInfo> left = leftFuture.join();
         Map<String, FileInfo> right = rightFuture.join();
-        return diffFileMaps(left, right, contextSize, includeUnchanged);
+        return diffFileMaps(left, right, contextSize, includeUnchanged, timings);
     }
 
-    private Map<String, FileInfo> decompileAndFormat(ArchiveInput archive) throws IOException {
-        long start = System.currentTimeMillis();
+    private Map<String, FileInfo> decompileAndFormat(
+            ArchiveInput archive, String label, List<StepTiming> timings) throws IOException {
+        long decompileStart = System.nanoTime();
         Map<String, FileInfo> raw = archiveDecompiler.decompileClasses(archive);
-        log.info("Step 1: decompileAndFormat raw:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
+        double decompileSeconds = recordStep(timings, "Decompile classes (" + label + ")", decompileStart);
+        log.info("Decompiled {} archive in {}s", label, decompileSeconds);
+
+        long formatStart = System.nanoTime();
         Map<String, FileInfo> formatted = new HashMap<>();
         raw.values().stream()
                 .map(fi -> sourceFormatter.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> formatted.put(fi.getName(), fi));
-        log.info("Step 2: decompileAndFormat files:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
+        double formatSeconds = recordStep(timings, "Format sources (" + label + ")", formatStart);
+        log.info("Formatted {} archive in {}s", label, formatSeconds);
         return formatted;
     }
 
@@ -138,31 +190,36 @@ public class ComparisonUseCase {
             ArchiveInput leftArchive,
             ArchiveInput rightArchive,
             int contextSize,
-            boolean includeUnchanged)
+            boolean includeUnchanged,
+            List<StepTiming> timings)
             throws IOException {
-        long start = System.currentTimeMillis();
+        long leftReadStart = System.nanoTime();
         Map<String, FileInfo> leftRaw = readSources(leftArchive);
-        Map<String, FileInfo> rightRaw = readSources(rightArchive);
-        log.info("Step 1: Read files:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
+        double leftReadSeconds = recordStep(timings, "Read sources (left)", leftReadStart);
+        log.info("Read left sources in {}s", leftReadSeconds);
 
+        long rightReadStart = System.nanoTime();
+        Map<String, FileInfo> rightRaw = readSources(rightArchive);
+        double rightReadSeconds = recordStep(timings, "Read sources (right)", rightReadStart);
+        log.info("Read right sources in {}s", rightReadSeconds);
+
+        long leftFormatStart = System.nanoTime();
         Map<String, FileInfo> left = new HashMap<>();
         leftRaw.values().stream()
                 .map(fi -> sourceFormatter.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> left.put(fi.getName(), fi));
+        double leftFormatSeconds = recordStep(timings, "Format sources (left)", leftFormatStart);
+        log.info("Formatted left sources in {}s", leftFormatSeconds);
 
-        log.info("Step 2: Execute left:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
-
+        long rightFormatStart = System.nanoTime();
         Map<String, FileInfo> right = new HashMap<>();
         rightRaw.values().stream()
                 .map(fi -> sourceFormatter.formatFile(fi.getName(), fi.getContent()))
                 .forEach(fi -> right.put(fi.getName(), fi));
-        log.info("Step 3: Execute right:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
+        double rightFormatSeconds = recordStep(timings, "Format sources (right)", rightFormatStart);
+        log.info("Formatted right sources in {}s", rightFormatSeconds);
 
-        ComparisonResult result = diffFileMaps(left, right, contextSize, includeUnchanged);
-
-        log.info("Step 4: Compare:{}", 1.0 * (System.currentTimeMillis() - start) / 1000);
-
-        return result;
+        return diffFileMaps(left, right, contextSize, includeUnchanged, timings);
     }
 
     private Map<String, FileInfo> readSources(ArchiveInput archive) throws IOException {
@@ -184,8 +241,9 @@ public class ComparisonUseCase {
             Map<String, FileInfo> left,
             Map<String, FileInfo> right,
             int contextSize,
-            boolean includeUnchanged) {
-        long start = System.currentTimeMillis();
+            boolean includeUnchanged,
+            List<StepTiming> timings) {
+        long classifyStart = System.nanoTime();
         Map<String, FileInfo> added = new LinkedHashMap<>();
         Map<String, FileInfo> deleted = new LinkedHashMap<>();
         Map<String, FileInfo[]> modified = new LinkedHashMap<>();
@@ -211,8 +269,10 @@ public class ComparisonUseCase {
                 }
             }
         }
-        log.info("Step 1: diffFileMaps:{}", (System.currentTimeMillis() - start) / 1000);
+        double classifySeconds = recordStep(timings, "Classify file changes", classifyStart);
+        log.info("Classified file changes in {}s", classifySeconds);
 
+        long renameStart = System.nanoTime();
         Map<String, FileInfo[]> renames = new LinkedHashMap<>();
         Iterator<Map.Entry<String, FileInfo>> delIt = deleted.entrySet().iterator();
         while (delIt.hasNext()) {
@@ -237,8 +297,10 @@ public class ComparisonUseCase {
                 delIt.remove();
             }
         }
-        log.info("Step 2: diffFileMaps:{}", (System.currentTimeMillis() - start) / 1000);
+        double renameSeconds = recordStep(timings, "Detect renames", renameStart);
+        log.info("Detected renames in {}s", renameSeconds);
 
+        long renderStart = System.nanoTime();
         Map<String, DiffInfo> addedDiffs = new LinkedHashMap<>();
         for (Map.Entry<String, FileInfo> e : added.entrySet()) {
             addedDiffs.put(
@@ -275,7 +337,10 @@ public class ComparisonUseCase {
                                     contextSize,
                                     ArchiveDecompiler.CONTENT_NOT_READ)));
         }
-        log.info("Step 3: diffFileMaps:{}", (System.currentTimeMillis() - start) / 1000);
+        double renderSeconds = recordStep(timings, "Render file diffs", renderStart);
+        log.info("Rendered file diffs in {}s", renderSeconds);
+
+        long renameRenderStart = System.nanoTime();
         List<RenameInfo> renamedDiffs = new ArrayList<>();
         for (Map.Entry<String, FileInfo[]> e : renames.entrySet()) {
             String[] names = e.getKey().split("->", 2);
@@ -291,7 +356,8 @@ public class ComparisonUseCase {
                                     ArchiveDecompiler.CONTENT_NOT_READ)));
         }
         renamedDiffs.sort(Comparator.comparing(RenameInfo::getTo));
-        log.info("Step 4: diffFileMaps:{}", (System.currentTimeMillis() - start) / 1000);
+        double renameRenderSeconds = recordStep(timings, "Render rename diffs", renameRenderStart);
+        log.info("Rendered rename diffs in {}s", renameRenderSeconds);
         return new ComparisonResult(
                 addedDiffs,
                 deletedDiffs,

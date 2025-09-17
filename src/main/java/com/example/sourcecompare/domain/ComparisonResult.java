@@ -17,6 +17,7 @@ public class ComparisonResult {
     private Map<String, DiffInfo> modified;
     private List<RenameInfo> renamed;
     private List<String> unchanged;
+    private ComparisonTiming timing;
 
     public ComparisonResult(
             Map<String, DiffInfo> added,
@@ -29,6 +30,7 @@ public class ComparisonResult {
         this.modified = modified;
         this.renamed = renamed;
         this.unchanged = unchanged;
+        this.timing = null;
     }
 
     // No unified diff aggregation; consumers should access the maps directly.
