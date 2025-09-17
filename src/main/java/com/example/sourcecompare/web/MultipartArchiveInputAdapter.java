@@ -2,6 +2,7 @@ package com.example.sourcecompare.web;
 
 import com.example.sourcecompare.domain.ArchiveInput;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
@@ -15,8 +16,18 @@ import java.util.zip.ZipOutputStream;
 public class MultipartArchiveInputAdapter {
     public ArchiveInput adapt(MultipartFile file) {
         String originalFilename = file.getOriginalFilename();
-        String safeFilename = originalFilename != null ? originalFilename : "";
-        String lowerCaseName = safeFilename.toLowerCase(Locale.ROOT);
+        String sanitizedOriginal = sanitizeFilename(originalFilename);
+        String sanitizedFallback = sanitizeFilename(file.getName());
+
+        String safeFilename = !sanitizedOriginal.isEmpty() ? sanitizedOriginal : sanitizedFallback;
+        String extensionSource =
+                firstNonBlank(
+                        safeFilename,
+                        sanitizedOriginal,
+                        sanitizedFallback,
+                        originalFilename,
+                        file.getName());
+        String lowerCaseName = extensionSource.toLowerCase(Locale.ROOT);
 
         if (lowerCaseName.endsWith(".zip") || lowerCaseName.endsWith(".jar")) {
             return new ArchiveInput(safeFilename, file::getInputStream);
@@ -25,7 +36,7 @@ public class MultipartArchiveInputAdapter {
         if (lowerCaseName.endsWith(".class") || lowerCaseName.endsWith(".java")) {
             try {
                 byte[] content = file.getBytes();
-                String entryName = singleEntryName(originalFilename, lowerCaseName);
+                String entryName = singleEntryName(safeFilename, extensionSource);
                 byte[] archiveBytes = createSingleEntryArchive(entryName, content);
                 return new ArchiveInput(safeFilename, () -> new ByteArrayInputStream(archiveBytes));
             } catch (IOException e) {
@@ -51,20 +62,49 @@ public class MultipartArchiveInputAdapter {
         }
     }
 
-    private static String singleEntryName(String originalFilename, String lowerCaseName) {
-        if (originalFilename != null) {
-            String trimmed = originalFilename.trim();
-            if (!trimmed.isEmpty()) {
-                int lastSlash = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
-                String candidate = trimmed.substring(lastSlash + 1);
-                if (!candidate.isBlank()) {
-                    return candidate;
-                }
-            }
+    private static String singleEntryName(String sanitizedFilename, String extensionSource) {
+        if (!sanitizedFilename.isBlank()) {
+            return sanitizedFilename;
         }
 
-        int extensionIndex = lowerCaseName.lastIndexOf('.');
-        String extension = extensionIndex >= 0 ? lowerCaseName.substring(extensionIndex) : "";
+        String extension = extractExtension(extensionSource);
         return "file" + extension;
+    }
+
+    private static String sanitizeFilename(String candidate) {
+        if (!StringUtils.hasText(candidate)) {
+            return "";
+        }
+
+        String cleaned = StringUtils.cleanPath(candidate.trim());
+        if (!StringUtils.hasText(cleaned)) {
+            return "";
+        }
+
+        int lastSlash = Math.max(cleaned.lastIndexOf('/'), cleaned.lastIndexOf('\\'));
+        String withoutDirectories = cleaned.substring(lastSlash + 1);
+        return withoutDirectories.trim();
+    }
+
+    private static String extractExtension(String name) {
+        if (!StringUtils.hasText(name)) {
+            return "";
+        }
+
+        int extensionIndex = name.lastIndexOf('.');
+        if (extensionIndex < 0 || extensionIndex == name.length() - 1) {
+            return "";
+        }
+
+        return name.substring(extensionIndex);
+    }
+
+    private static String firstNonBlank(String... candidates) {
+        for (String candidate : candidates) {
+            if (StringUtils.hasText(candidate)) {
+                return candidate;
+            }
+        }
+        return "";
     }
 }
