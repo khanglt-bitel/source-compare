@@ -37,15 +37,17 @@
             id="compareForm"
             method="post"
     >
+        <input name="mode" type="hidden" value="CLASS_VS_CLASS"/>
         <div class="row mb-3">
             <div class="col-md-6">
-                <label class="form-label" for="leftZip">Left ZIP</label>
+                <label class="form-label" for="leftZip">Left archives</label>
                 <div class="drop-zone mb-2" id="leftDropZone">
                     <span class="drop-zone-text">Drag &amp; drop or click to select</span>
                     <input
                             accept=".zip"
                             id="leftZip"
                             name="leftZip"
+                            multiple
                             required
                             style="display: none"
                             type="file"
@@ -56,13 +58,14 @@
                 </div>
             </div>
             <div class="col-md-6">
-                <label class="form-label" for="rightZip">Right ZIP</label>
+                <label class="form-label" for="rightZip">Right archives</label>
                 <div class="drop-zone mb-2" id="rightDropZone">
                     <span class="drop-zone-text">Drag &amp; drop or click to select</span>
                     <input
                             accept=".zip"
                             id="rightZip"
                             name="rightZip"
+                            multiple
                             required
                             style="display: none"
                             type="file"
@@ -70,21 +73,6 @@
                 </div>
                 <div class="form-text">
                     Upload the ZIP file representing the right side of the comparison.
-                </div>
-            </div>
-        </div>
-        <div class="row mb-3">
-            <div class="col-md-12">
-                <div aria-label="Comparison mode" class="btn-group" role="group">
-                    <input checked class="btn-check" id="modeClassClass" name="mode" type="radio"
-                           value="CLASS_VS_CLASS">
-                    <label class="btn btn-outline-primary" for="modeClassClass">Class vs Class</label>
-
-                    <input class="btn-check" id="modeClassSource" name="mode" type="radio" value="CLASS_VS_SOURCE">
-                    <label class="btn btn-outline-primary" for="modeClassSource">Class vs Source</label>
-
-                    <input class="btn-check" id="modeSourceSource" name="mode" type="radio" value="SOURCE_VS_SOURCE">
-                    <label class="btn btn-outline-primary" for="modeSourceSource">Source vs Source</label>
                 </div>
             </div>
         </div>
@@ -196,8 +184,13 @@
 
         input.addEventListener('change', () => {
             const text = dropZone.querySelector('.drop-zone-text');
-            if (input.files.length) {
-                text.textContent = input.files[0].name;
+            const {files} = input;
+            if (files.length) {
+                if (files.length === 1) {
+                    text.textContent = files[0].name;
+                } else {
+                    text.textContent = `${files.length} files selected`;
+                }
             } else {
                 text.textContent = 'Drag & drop or click to select';
             }
