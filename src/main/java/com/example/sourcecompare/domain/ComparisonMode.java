@@ -1,4 +1,4 @@
-package com.example.sourcecompare;
+package com.example.sourcecompare.domain;
 
 public enum ComparisonMode {
     CLASS_VS_SOURCE,

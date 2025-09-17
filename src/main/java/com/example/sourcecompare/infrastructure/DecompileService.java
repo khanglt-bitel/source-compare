@@ -1,14 +1,17 @@
-package com.example.sourcecompare;
+package com.example.sourcecompare.infrastructure;
 
+import com.example.sourcecompare.application.ArchiveDecompiler;
+import com.example.sourcecompare.domain.ArchiveInput;
+import com.example.sourcecompare.domain.FileInfo;
 import org.jetbrains.java.decompiler.main.decompiler.ConsoleDecompiler;
 import org.jetbrains.java.decompiler.main.extern.IFernflowerLogger;
 import org.jetbrains.java.decompiler.main.extern.IFernflowerPreferences;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -20,7 +23,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 @Service
-public class DecompileService {
+public class DecompileService implements ArchiveDecompiler {
     private final int decompileThreadPoolSize;
     private final ExecutorService executor;
 
@@ -31,7 +34,8 @@ public class DecompileService {
         this.executor = Executors.newFixedThreadPool(decompileThreadPoolSize);
     }
 
-    public Map<String, FileInfo> decompileClasses(MultipartFile zip) throws IOException {
+    @Override
+    public Map<String, FileInfo> decompileClasses(ArchiveInput archive) throws IOException {
         CompletionService<Map.Entry<String, FileInfo>> completionService =
                 new ExecutorCompletionService<>(executor);
 
@@ -39,7 +43,8 @@ public class DecompileService {
         Map<String, FileInfo> unorderedResults = new HashMap<>();
         int submittedTasks = 0;
 
-        try (ZipInputStream zis = new ZipInputStream(zip.getInputStream())) {
+        try (InputStream inputStream = archive.openStream();
+                ZipInputStream zis = new ZipInputStream(inputStream)) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
                 if (entry.isDirectory()) {
@@ -71,7 +76,9 @@ public class DecompileService {
                 } else {
 //                    drainEntry(zis);
 //                    zis.closeEntry();
-                    unorderedResults.put(entryName, new FileInfo(entryName, CONTENT_NOT_READ));
+                    unorderedResults.put(
+                            entryName,
+                            new FileInfo(entryName, ArchiveDecompiler.CONTENT_NOT_READ));
                 }
             }
         }
@@ -163,8 +170,6 @@ public class DecompileService {
             // Best-effort cleanup
         }
     }
-
-    public static final String CONTENT_NOT_READ = "CONTENT_NOT_READ";
 
     private static final Set<String> HUMAN_READABLE_SUFFIXES =
             Set.of(

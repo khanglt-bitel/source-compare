@@ -1,4 +1,4 @@
-package com.example.sourcecompare;
+package com.example.sourcecompare.domain;
 
 /**
  * Simple container for file metadata used during comparisons.

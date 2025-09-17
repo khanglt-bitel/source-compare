@@ -1,29 +1,23 @@
-package com.example.sourcecompare;
+package com.example.sourcecompare.infrastructure;
 
+import com.example.sourcecompare.application.ArchiveDecompiler;
 import org.junit.jupiter.api.Test;
-
-import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ComparisonServiceTest {
+class UnifiedDiffRendererTest {
+
+    private final UnifiedDiffRenderer renderer = new UnifiedDiffRenderer();
 
     @Test
-    void generateDiffProducesFallbackWhenContentMatches() throws Exception {
-        ComparisonService service = new ComparisonService();
-        Method method =
-                ComparisonService.class.getDeclaredMethod(
-                        "generateDiff", String.class, String.class, String.class, int.class);
-        method.setAccessible(true);
-
+    void renderProducesFallbackWhenContentMatches() {
         String diff =
-                (String)
-                        method.invoke(
-                                service,
-                                "Example.java",
-                                "CONTENT_NOT_READ",
-                                "CONTENT_NOT_READ",
-                                3);
+                renderer.render(
+                        "Example.java",
+                        ArchiveDecompiler.CONTENT_NOT_READ,
+                        ArchiveDecompiler.CONTENT_NOT_READ,
+                        3,
+                        ArchiveDecompiler.CONTENT_NOT_READ);
 
         assertTrue(
                 diff.contains("--- Example.java_orig"),

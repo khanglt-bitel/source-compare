@@ -1,5 +1,7 @@
-package com.example.sourcecompare;
+package com.example.sourcecompare.infrastructure;
 
+import com.example.sourcecompare.application.SourceFormatter;
+import com.example.sourcecompare.domain.FileInfo;
 import org.eclipse.jdt.core.ToolFactory;
 import org.eclipse.jdt.core.formatter.CodeFormatter;
 import org.eclipse.jface.text.BadLocationException;
@@ -8,7 +10,8 @@ import org.eclipse.text.edits.TextEdit;
 import org.springframework.stereotype.Service;
 
 @Service
-public class EclipseFormatService {
+public class EclipseFormatService implements SourceFormatter {
+    @Override
     public FileInfo formatFile(String name, String content) {
         String nameFormat = name.replace(".class", ".java");
         String contentFormat;

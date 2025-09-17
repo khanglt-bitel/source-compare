@@ -1,5 +1,9 @@
-package com.example.sourcecompare;
+package com.example.sourcecompare.web;
 
+import com.example.sourcecompare.application.ComparisonUseCase;
+import com.example.sourcecompare.domain.ComparisonMode;
+import com.example.sourcecompare.domain.ComparisonRequest;
+import com.example.sourcecompare.domain.ComparisonResult;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,10 +15,13 @@ import java.io.IOException;
 
 @Controller
 public class HomeController {
-    private final ComparisonService comparisonService;
+    private final ComparisonUseCase comparisonUseCase;
+    private final MultipartArchiveInputAdapter archiveInputAdapter;
 
-    public HomeController(ComparisonService comparisonService) {
-        this.comparisonService = comparisonService;
+    public HomeController(
+            ComparisonUseCase comparisonUseCase, MultipartArchiveInputAdapter archiveInputAdapter) {
+        this.comparisonUseCase = comparisonUseCase;
+        this.archiveInputAdapter = archiveInputAdapter;
     }
 
     @GetMapping("/")
@@ -32,8 +39,14 @@ public class HomeController {
             @RequestParam(name = "showUnchanged", defaultValue = "false") boolean showUnchanged,
             Model model)
             throws IOException {
-        ComparisonResult result =
-                comparisonService.compare(leftZip, rightZip, mode, contextSize, showUnchanged);
+        ComparisonRequest request =
+                new ComparisonRequest(
+                        archiveInputAdapter.adapt(leftZip),
+                        archiveInputAdapter.adapt(rightZip),
+                        mode,
+                        contextSize,
+                        showUnchanged);
+        ComparisonResult result = comparisonUseCase.compare(request);
         model.addAttribute(
                 "message",
                 String.format(

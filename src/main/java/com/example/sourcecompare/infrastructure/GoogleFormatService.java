@@ -1,14 +1,17 @@
-package com.example.sourcecompare;
+package com.example.sourcecompare.infrastructure;
 
+import com.example.sourcecompare.application.JavaSourceNormalizer;
+import com.example.sourcecompare.domain.ArchiveInput;
+import com.example.sourcecompare.domain.FileInfo;
 import com.google.googlejavaformat.java.Formatter;
 import com.google.googlejavaformat.java.FormatterException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.objectweb.asm.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
@@ -16,7 +19,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 @Service
-public class GoogleFormatService {
+public class GoogleFormatService implements JavaSourceNormalizer {
+    @Override
     public String normalizeJava(String source) {
         try {
             source = new Formatter().formatSource(source);
@@ -65,9 +69,10 @@ public class GoogleFormatService {
         }
     }
 
-    public Map<String, FileInfo> classStructures(MultipartFile zip) throws IOException {
+    public Map<String, FileInfo> classStructures(ArchiveInput archive) throws IOException {
         Map<String, FileInfo> result = new HashMap<>();
-        try (ZipInputStream zis = new ZipInputStream(zip.getInputStream())) {
+        try (InputStream inputStream = archive.openStream();
+                ZipInputStream zis = new ZipInputStream(inputStream)) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
                 if (!entry.isDirectory() && entry.getName().endsWith(".class")) {
