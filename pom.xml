@@ -13,6 +13,7 @@
     <groupId>com.example</groupId>
     <artifactId>source-compare</artifactId>
     <version>0.0.1-SNAPSHOT</version>
+    <packaging>jar</packaging>
     <name>source-compare</name>
 
     <properties>
@@ -121,30 +122,40 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>com.coveo</groupId>
-                <artifactId>fmt-maven-plugin</artifactId>
-                <version>2.10</version>
-                <dependencies>
-                    <dependency>
-                        <groupId>com.google.googlejavaformat</groupId>
-                        <artifactId>google-java-format</artifactId>
-                        <version>${google-java-format.version}</version>
-                    </dependency>
-                </dependencies>
                 <configuration>
-                    <style>GOOGLE</style>
+                    <mainClass>com.example.sourcecompare.SourceCompareApplication</mainClass>
                 </configuration>
                 <executions>
                     <execution>
                         <goals>
-                            <goal>format</goal>
-                            <goal>check</goal>
+                            <goal>repackage</goal>
                         </goals>
                     </execution>
                 </executions>
             </plugin>
+<!--            <plugin>-->
+<!--                <groupId>com.coveo</groupId>-->
+<!--                <artifactId>fmt-maven-plugin</artifactId>-->
+<!--                <version>2.10</version>-->
+<!--                <dependencies>-->
+<!--                    <dependency>-->
+<!--                        <groupId>com.google.googlejavaformat</groupId>-->
+<!--                        <artifactId>google-java-format</artifactId>-->
+<!--                        <version>${google-java-format.version}</version>-->
+<!--                    </dependency>-->
+<!--                </dependencies>-->
+<!--                <configuration>-->
+<!--                    <style>GOOGLE</style>-->
+<!--                </configuration>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <goals>-->
+<!--                            <goal>format</goal>-->
+<!--                            <goal>check</goal>-->
+<!--                        </goals>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--            </plugin>-->
         </plugins>
     </build>
 </project>
