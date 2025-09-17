@@ -20,8 +20,14 @@ import java.util.zip.ZipOutputStream;
 
 @Component
 public class MultipartArchiveInputAdapter {
-    public ArchiveInput adapt(MultipartFile file) {
-        return new ArchiveInput(file.getOriginalFilename(), file::getInputStream);
+    public ArchiveInput adapt(MultipartFile file) throws IOException {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File must not be null or empty");
+        }
+        if (isZip(file)) {
+            return new ArchiveInput(file.getOriginalFilename(), file::getInputStream);
+        }
+        return createSingleFileArchive(file);
     }
 
     public ArchiveInput adapt(MultipartFile[] files) throws IOException {
@@ -85,25 +91,29 @@ public class MultipartArchiveInputAdapter {
             for (int index = 0; index < files.size(); index++) {
                 MultipartFile file = files.get(index);
                 String prefix = ensureUniquePrefix(derivePrefix(file, index), usedPrefixes);
-                try (InputStream inputStream = file.getInputStream();
-                        ZipInputStream zis = new ZipInputStream(inputStream)) {
-                    ZipEntry entry;
-                    while ((entry = zis.getNextEntry()) != null) {
-                        if (entry.isDirectory()) {
-                            continue;
+                if (isZip(file)) {
+                    try (InputStream inputStream = file.getInputStream();
+                            ZipInputStream zis = new ZipInputStream(inputStream)) {
+                        ZipEntry entry;
+                        while ((entry = zis.getNextEntry()) != null) {
+                            if (entry.isDirectory()) {
+                                continue;
+                            }
+                            String entryName = sanitizeEntryName(entry.getName());
+                            if (entryName.isEmpty()) {
+                                continue;
+                            }
+                            ZipEntry newEntry = new ZipEntry(prefix + "/" + entryName);
+                            zos.putNextEntry(newEntry);
+                            int read;
+                            while ((read = zis.read(buffer)) != -1) {
+                                zos.write(buffer, 0, read);
+                            }
+                            zos.closeEntry();
                         }
-                        String entryName = sanitizeEntryName(entry.getName());
-                        if (entryName.isEmpty()) {
-                            continue;
-                        }
-                        ZipEntry newEntry = new ZipEntry(prefix + "/" + entryName);
-                        zos.putNextEntry(newEntry);
-                        int read;
-                        while ((read = zis.read(buffer)) != -1) {
-                            zos.write(buffer, 0, read);
-                        }
-                        zos.closeEntry();
                     }
+                } else {
+                    writeRawFileEntry(zos, prefix, file);
                 }
             }
         }
@@ -170,5 +180,73 @@ public class MultipartArchiveInputAdapter {
             segments.add(segment);
         }
         return String.join("/", segments);
+    }
+
+    private ArchiveInput createSingleFileArchive(MultipartFile file) throws IOException {
+        Path tempFile = Files.createTempFile("single-archive", ".zip");
+        tempFile.toFile().deleteOnExit();
+        try {
+            try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(tempFile))) {
+                String entryName = determineEntryName(file);
+                ZipEntry entry = new ZipEntry(entryName);
+                zos.putNextEntry(entry);
+                try (InputStream inputStream = file.getInputStream()) {
+                    inputStream.transferTo(zos);
+                }
+                zos.closeEntry();
+            }
+        } catch (IOException e) {
+            Files.deleteIfExists(tempFile);
+            throw e;
+        }
+        String archiveName = buildSingleArchiveName(file.getOriginalFilename());
+        return new ArchiveInput(archiveName, () -> Files.newInputStream(tempFile));
+    }
+
+    private void writeRawFileEntry(ZipOutputStream zos, String prefix, MultipartFile file)
+            throws IOException {
+        String entryName = determineEntryName(file);
+        ZipEntry entry = new ZipEntry(prefix + "/" + entryName);
+        zos.putNextEntry(entry);
+        try (InputStream inputStream = file.getInputStream()) {
+            inputStream.transferTo(zos);
+        }
+        zos.closeEntry();
+    }
+
+    private String determineEntryName(MultipartFile file) {
+        String originalFilename = file.getOriginalFilename();
+        String sanitized = sanitizeEntryName(originalFilename != null ? originalFilename : "");
+        if (sanitized.isEmpty()) {
+            sanitized = "file";
+        }
+        return sanitized;
+    }
+
+    private String buildSingleArchiveName(String originalFilename) {
+        if (originalFilename == null || originalFilename.isBlank()) {
+            return "upload.zip";
+        }
+        String trimmed = originalFilename.trim();
+        if (trimmed.toLowerCase().endsWith(".zip")) {
+            return trimmed;
+        }
+        return trimmed + ".zip";
+    }
+
+    private boolean isZip(MultipartFile file) throws IOException {
+        try (InputStream inputStream = file.getInputStream()) {
+            byte[] signature = inputStream.readNBytes(4);
+            if (signature.length < 4) {
+                return false;
+            }
+            int header = ((signature[0] & 0xFF) << 24)
+                    | ((signature[1] & 0xFF) << 16)
+                    | ((signature[2] & 0xFF) << 8)
+                    | (signature[3] & 0xFF);
+            return header == 0x504B0304
+                    || header == 0x504B0506
+                    || header == 0x504B0708;
+        }
     }
 }
