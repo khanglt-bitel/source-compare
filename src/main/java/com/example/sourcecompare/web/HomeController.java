@@ -32,9 +32,9 @@ public class HomeController {
 
     @PostMapping("/compare")
     public String compare(
-            @RequestParam("leftZip") MultipartFile leftZip,
-            @RequestParam("rightZip") MultipartFile rightZip,
-            @RequestParam("mode") ComparisonMode mode,
+            @RequestParam("leftZip") MultipartFile[] leftZip,
+            @RequestParam("rightZip") MultipartFile[] rightZip,
+            @RequestParam(name = "mode", defaultValue = "CLASS_VS_CLASS") ComparisonMode mode,
             @RequestParam(name = "contextSize", defaultValue = "5") int contextSize,
             @RequestParam(name = "showUnchanged", defaultValue = "false") boolean showUnchanged,
             Model model)
@@ -51,7 +51,9 @@ public class HomeController {
                 "message",
                 String.format(
                         "Compared %s and %s using %s",
-                        leftZip.getOriginalFilename(), rightZip.getOriginalFilename(), mode));
+                        archiveInputAdapter.describeFilenames(leftZip),
+                        archiveInputAdapter.describeFilenames(rightZip),
+                        mode));
         model.addAttribute("result", result);
         return "diff";
     }
