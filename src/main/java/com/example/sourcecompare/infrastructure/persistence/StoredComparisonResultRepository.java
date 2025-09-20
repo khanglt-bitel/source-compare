@@ -1,10 +1,11 @@
 package com.example.sourcecompare.infrastructure.persistence;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-
-import java.util.List;
 
 public interface StoredComparisonResultRepository
         extends JpaRepository<StoredComparisonResult, Long> {
-    List<StoredComparisonResult> findTop20ByOrderByCreatedDesc();
+    Page<StoredComparisonResult> findByNameContainingIgnoreCaseAndIpRequestContainingIgnoreCase(
+            String name, String ipRequest, Pageable pageable);
 }

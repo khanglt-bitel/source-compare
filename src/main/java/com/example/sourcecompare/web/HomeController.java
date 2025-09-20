@@ -32,10 +32,20 @@ public class HomeController {
     }
 
     @GetMapping("/")
-    public String index(Model model) {
+    public String index(
+            @RequestParam(name = "name", required = false) String nameFilter,
+            @RequestParam(name = "ip", required = false) String ipFilter,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            Model model) {
         model.addAttribute("message", "Source Compare Initialized");
-        model.addAttribute(
-                "recentComparisons", comparisonResultPersistenceService.loadRecentComparisons());
+        var comparisonPage =
+                comparisonResultPersistenceService.searchComparisons(
+                        nameFilter, ipFilter, page, size);
+        model.addAttribute("recentComparisons", comparisonPage.getContent());
+        model.addAttribute("comparisonPage", comparisonPage);
+        model.addAttribute("nameFilter", nameFilter == null ? "" : nameFilter);
+        model.addAttribute("ipFilter", ipFilter == null ? "" : ipFilter);
         return "index";
     }
 
