@@ -1,25 +1,21 @@
 package com.example.sourcecompare.domain;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 import java.util.List;
 
 /**
  * Summary of timing information for a comparison run.
  */
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class ComparisonTiming {
-    private final List<StepTiming> steps;
-    private final double totalDurationSeconds;
-
-    public ComparisonTiming(List<StepTiming> steps, double totalDurationSeconds) {
-        this.steps = steps;
-        this.totalDurationSeconds = totalDurationSeconds;
-    }
-
-    public List<StepTiming> getSteps() {
-        return steps;
-    }
-
-    public double getTotalDurationSeconds() {
-        return totalDurationSeconds;
-    }
+    private List<StepTiming> steps;
+    private double totalDurationSeconds;
 }
 
