@@ -166,9 +166,22 @@
     }
 </style>
 <div class="container-fluid mt-4">
-    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
-        <h1 class="mb-0" th:text="${message}">Comparison Result</h1>
-        <a class="btn btn-outline-secondary" href="/">Return to Index</a>
+    <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center">
+        <div>
+            <p class="text-muted mb-1" th:if="${comparisonId != null}" th:text="'Comparison #' + ${comparisonId}">
+                Comparison #
+            </p>
+            <h1 class="mb-0" th:text="${message}">Comparison Result</h1>
+        </div>
+        <div class="ms-auto text-end">
+            <div class="text-muted" th:if="${created != null}" th:text="${#temporals.format(created, 'yyyy-MM-dd HH:mm:ss')}">
+                2024-01-01 10:00:00
+            </div>
+            <div class="text-muted" th:if="${ipRequest != null}" th:text="'Request IP: ' + ${ipRequest}">
+                Request IP: 127.0.0.1
+            </div>
+            <a class="btn btn-outline-secondary mt-2" href="/">Return to Index</a>
+        </div>
     </div>
     <div class="row mt-3">
         <div class="col-lg-3 mb-3">

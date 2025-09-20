@@ -1,6 +1,7 @@
 package com.example.sourcecompare.domain;
 
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
@@ -8,6 +9,7 @@ import lombok.Setter;
  */
 @Getter
 @Setter
+@NoArgsConstructor
 public class RenameInfo {
     private String from;
     private String to;
