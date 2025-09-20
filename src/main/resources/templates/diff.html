@@ -168,8 +168,12 @@
 <div class="container-fluid mt-4">
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
         <h1 class="mb-0" th:text="${message}">Comparison Result</h1>
-        <a class="btn btn-outline-secondary" href="/">Return to Index</a>
+        <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-primary" type="button" id="saveResultButton">Save Comparison</button>
+            <a class="btn btn-outline-secondary" href="/">Return to Index</a>
+        </div>
     </div>
+    <div class="alert mt-3 d-none" id="saveStatus" role="alert"></div>
     <div class="row mt-3">
         <div class="col-lg-3 mb-3">
             <div class="card h-100 file-tree-card">
@@ -192,9 +196,27 @@
     const diffContainer = document.getElementById('diffContent');
     const timingContainer = document.getElementById('timingSummary');
     const fileTreeContainer = document.getElementById('fileTree');
+    const saveButton = document.getElementById('saveResultButton');
+    const saveStatus = document.getElementById('saveStatus');
     const diffSections = new Map();
     let activeTreeItem = null;
     let directoryIdCounter = 0;
+
+    function setStatus(message, type) {
+        if (!saveStatus) {
+            return;
+        }
+        saveStatus.textContent = message;
+        saveStatus.className = `alert mt-3 alert-${type}`;
+    }
+
+    function clearStatus() {
+        if (!saveStatus) {
+            return;
+        }
+        saveStatus.textContent = '';
+        saveStatus.className = 'alert mt-3 d-none';
+    }
 
     const STATUS_INFO = {
         added: {label: 'Added', badgeClass: 'bg-success', headingClass: 'diff-heading-added'},
@@ -537,6 +559,53 @@
     });
 
     renderFileTree(diffs);
+
+    async function saveComparison() {
+        clearStatus();
+        const comparisonName = window.prompt('Enter a name for this comparison:');
+        if (!comparisonName || !comparisonName.trim()) {
+            setStatus('Save cancelled: comparison name is required.', 'warning');
+            return;
+        }
+
+        const userName = window.prompt('Enter your name:');
+        if (!userName || !userName.trim()) {
+            setStatus('Save cancelled: user is required.', 'warning');
+            return;
+        }
+
+        if (saveButton) {
+            saveButton.disabled = true;
+        }
+
+        try {
+            const response = await fetch('/compare/save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: comparisonName, user: userName, result}),
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const errorMessage = payload.error || 'Failed to save comparison result.';
+                setStatus(errorMessage, 'danger');
+                return;
+            }
+
+            const identifier = payload.id ? ` (ID: ${payload.id})` : '';
+            setStatus(`Comparison saved successfully${identifier}.`, 'success');
+        } catch (error) {
+            setStatus('Unexpected error while saving the comparison result.', 'danger');
+        } finally {
+            if (saveButton) {
+                saveButton.disabled = false;
+            }
+        }
+    }
+
+    if (saveButton) {
+        saveButton.addEventListener('click', saveComparison);
+    }
 
     if (window.location.hash) {
         const treeLink = fileTreeContainer.querySelector(`a[href='${window.location.hash}']`);

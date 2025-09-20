@@ -1,27 +1,36 @@
 package com.example.sourcecompare.web;
 
+import com.example.sourcecompare.application.ComparisonResultPersistenceService;
 import com.example.sourcecompare.application.ComparisonUseCase;
 import com.example.sourcecompare.domain.ComparisonMode;
 import com.example.sourcecompare.domain.ComparisonRequest;
 import com.example.sourcecompare.domain.ComparisonResult;
+import com.example.sourcecompare.domain.ComparisonRecord;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Map;
 
 @Controller
 public class HomeController {
     private final ComparisonUseCase comparisonUseCase;
     private final MultipartArchiveInputAdapter archiveInputAdapter;
+    private final ComparisonResultPersistenceService comparisonResultPersistenceService;
 
     public HomeController(
-            ComparisonUseCase comparisonUseCase, MultipartArchiveInputAdapter archiveInputAdapter) {
+            ComparisonUseCase comparisonUseCase,
+            MultipartArchiveInputAdapter archiveInputAdapter,
+            ComparisonResultPersistenceService comparisonResultPersistenceService) {
         this.comparisonUseCase = comparisonUseCase;
         this.archiveInputAdapter = archiveInputAdapter;
+        this.comparisonResultPersistenceService = comparisonResultPersistenceService;
     }
 
     @GetMapping("/")
@@ -56,5 +65,17 @@ public class HomeController {
                         mode));
         model.addAttribute("result", result);
         return "diff";
+    }
+
+    @PostMapping("/compare/save")
+    public ResponseEntity<?> saveComparison(@RequestBody SaveComparisonRequest request) {
+        try {
+            ComparisonRecord saved =
+                    comparisonResultPersistenceService.save(
+                            request.getName(), request.getUser(), request.getResult());
+            return ResponseEntity.ok(Map.of("id", saved.getId()));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        }
     }
 }
