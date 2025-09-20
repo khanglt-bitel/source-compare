@@ -38,6 +38,9 @@ public class StoredComparisonResult {
     @Column(name = "DIFF_RESULT", nullable = false)
     private String diffResultJson;
 
+    @Column(name = "MARK_COLOR")
+    private String markColor;
+
     public Long getId() {
         return id;
     }
@@ -76,5 +79,13 @@ public class StoredComparisonResult {
 
     public void setDiffResultJson(String diffResultJson) {
         this.diffResultJson = diffResultJson;
+    }
+
+    public String getMarkColor() {
+        return markColor;
+    }
+
+    public void setMarkColor(String markColor) {
+        this.markColor = markColor;
     }
 }

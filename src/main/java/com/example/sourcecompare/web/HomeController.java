@@ -68,13 +68,29 @@ public class HomeController {
     }
 
     @GetMapping("/compare/{id}")
-    public String viewComparison(@PathVariable("id") long id, Model model) {
+    public String viewComparison(@PathVariable("id") long id, Model model, HttpServletRequest request) {
         var storedResult = comparisonResultPersistenceService.loadComparison(id);
         model.addAttribute("message", storedResult.name());
         model.addAttribute("result", storedResult.result());
         model.addAttribute("comparisonId", storedResult.id());
         model.addAttribute("ipRequest", storedResult.ipRequest());
         model.addAttribute("created", storedResult.created());
+        model.addAttribute("markColor", storedResult.markColor());
+        model.addAttribute("markColorLabel", storedResult.markColorLabel());
+        model.addAttribute(
+                "markColorOptions", comparisonResultPersistenceService.getAvailableMarkColors());
+        model.addAttribute(
+                "canEditMarkColor", storedResult.ipRequest() != null
+                        && storedResult.ipRequest().equals(request.getRemoteAddr()));
         return "diff";
+    }
+
+    @PostMapping("/compare/{id}/mark-color")
+    public String updateMarkColor(
+            @PathVariable("id") long id,
+            @RequestParam("markColor") String markColor,
+            HttpServletRequest request) {
+        comparisonResultPersistenceService.updateMarkColor(id, request.getRemoteAddr(), markColor);
+        return "redirect:/compare/" + id;
     }
 }

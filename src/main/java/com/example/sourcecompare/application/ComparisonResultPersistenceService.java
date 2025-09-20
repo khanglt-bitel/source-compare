@@ -12,10 +12,25 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
 public class ComparisonResultPersistenceService {
+    private static final List<MarkColorOption> MARK_COLOR_OPTIONS =
+            List.of(
+                    new MarkColorOption("royalblue", "Blue"),
+                    new MarkColorOption("seagreen", "Green"),
+                    new MarkColorOption("firebrick", "Red"),
+                    new MarkColorOption("darkorange", "Orange"),
+                    new MarkColorOption("mediumpurple", "Purple"),
+                    new MarkColorOption("teal", "Teal"),
+                    new MarkColorOption("palevioletred", "Pink"),
+                    new MarkColorOption("slategray", "Gray"));
+
+    private static final String DEFAULT_MARK_COLOR = MARK_COLOR_OPTIONS.get(0).value();
+
     private final StoredComparisonResultRepository repository;
     private final ObjectMapper objectMapper;
 
@@ -31,6 +46,7 @@ public class ComparisonResultPersistenceService {
         entity.setName(name);
         entity.setIpRequest(ipRequest);
         entity.setDiffResultJson(toJson(result));
+        entity.setMarkColor(DEFAULT_MARK_COLOR);
         StoredComparisonResult saved = repository.save(entity);
         return saved.getId();
     }
@@ -45,8 +61,15 @@ public class ComparisonResultPersistenceService {
                                         new ResponseStatusException(
                                                 HttpStatus.NOT_FOUND, "Comparison not found"));
         ComparisonResult result = fromJson(entity.getDiffResultJson());
+        String markColor = normalizeMarkColor(entity.getMarkColor());
         return new StoredComparisonResultView(
-                entity.getId(), entity.getName(), entity.getIpRequest(), entity.getCreated(), result);
+                entity.getId(),
+                entity.getName(),
+                entity.getIpRequest(),
+                entity.getCreated(),
+                markColor,
+                describeMarkColor(markColor),
+                result);
     }
 
     @Transactional(readOnly = true)
@@ -55,10 +78,37 @@ public class ComparisonResultPersistenceService {
                 .findTop20ByOrderByCreatedDesc()
                 .stream()
                 .map(
-                        result ->
-                                new StoredComparisonResultSummary(
-                                        result.getId(), result.getName(), result.getCreated()))
+                        result -> {
+                            String markColor = normalizeMarkColor(result.getMarkColor());
+                            return new StoredComparisonResultSummary(
+                                    result.getId(),
+                                    result.getName(),
+                                    result.getCreated(),
+                                    markColor,
+                                    describeMarkColor(markColor));
+                        })
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void updateMarkColor(long id, String requesterIp, String markColor) {
+        StoredComparisonResult entity =
+                repository
+                        .findById(id)
+                        .orElseThrow(
+                                () ->
+                                        new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND, "Comparison not found"));
+
+        if (!Objects.equals(entity.getIpRequest(), requesterIp)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed to edit this comparison");
+        }
+
+        if (!isValidMarkColor(markColor)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid color value");
+        }
+
+        entity.setMarkColor(markColor);
     }
 
     private String toJson(ComparisonResult result) {
@@ -80,7 +130,47 @@ public class ComparisonResultPersistenceService {
     }
 
     public record StoredComparisonResultView(
-            Long id, String name, String ipRequest, LocalDateTime created, ComparisonResult result) {}
+            Long id,
+            String name,
+            String ipRequest,
+            LocalDateTime created,
+            String markColor,
+            String markColorLabel,
+            ComparisonResult result) {}
 
-    public record StoredComparisonResultSummary(Long id, String name, LocalDateTime created) {}
+    public record StoredComparisonResultSummary(
+            Long id,
+            String name,
+            LocalDateTime created,
+            String markColor,
+            String markColorLabel) {}
+
+    public record MarkColorOption(String value, String label) {}
+
+    public List<MarkColorOption> getAvailableMarkColors() {
+        return MARK_COLOR_OPTIONS;
+    }
+
+    public String getDefaultMarkColor() {
+        return DEFAULT_MARK_COLOR;
+    }
+
+    public String describeMarkColor(String markColor) {
+        return findMarkColorOption(markColor).orElse(MARK_COLOR_OPTIONS.get(0)).label();
+    }
+
+    public boolean isValidMarkColor(String value) {
+        return findMarkColorOption(value).isPresent();
+    }
+
+    private String normalizeMarkColor(String value) {
+        return findMarkColorOption(value).map(MarkColorOption::value).orElse(DEFAULT_MARK_COLOR);
+    }
+
+    private Optional<MarkColorOption> findMarkColorOption(String value) {
+        if (value == null) {
+            return Optional.empty();
+        }
+        return MARK_COLOR_OPTIONS.stream().filter(option -> option.value().equals(value)).findFirst();
+    }
 }

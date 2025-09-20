@@ -156,6 +156,14 @@
         border-left-color: #6c757d;
     }
 
+    .mark-color-preview {
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        display: inline-block;
+    }
+
     @keyframes diff-highlight {
         from {
             background-color: #fff3cd;
@@ -165,7 +173,10 @@
         }
     }
 </style>
-<div class="container-fluid mt-4">
+<div
+        class="container-fluid mt-4"
+        th:with="displayColor=${markColor}, displayLabel=${markColorLabel}"
+>
     <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center">
         <div>
             <p class="text-muted mb-1" th:if="${comparisonId != null}" th:text="'Comparison #' + ${comparisonId}">
@@ -179,6 +190,46 @@
             </div>
             <div class="text-muted" th:if="${ipRequest != null}" th:text="'Request IP: ' + ${ipRequest}">
                 Request IP: 127.0.0.1
+            </div>
+            <form
+                    th:if="${canEditMarkColor}"
+                    th:action="@{|/compare/${comparisonId}/mark-color|}"
+                    method="post"
+                    class="d-flex flex-wrap align-items-center gap-2 justify-content-end mt-2"
+            >
+                <label class="form-label mb-0" for="markColorInput">Mark color</label>
+                <span
+                        class="mark-color-preview"
+                        id="markColorPreview"
+                        th:style="'background-color:' + ${displayColor}"
+                ></span>
+                <select
+                        class="form-select form-select-sm w-auto"
+                        id="markColorInput"
+                        name="markColor"
+                        required
+                        th:value="${displayColor}"
+                >
+                    <option
+                            th:each="option : ${markColorOptions}"
+                            th:text="${option.label}"
+                            th:value="${option.value}"
+                    >
+                        Blue
+                    </option>
+                </select>
+                <span class="text-muted small" id="markColorLabel" th:text="${displayLabel}">
+                    Blue
+                </span>
+                <button class="btn btn-primary btn-sm" type="submit">Update color</button>
+            </form>
+            <div
+                    class="d-flex align-items-center gap-2 justify-content-end mt-2"
+                    th:if="${!canEditMarkColor}"
+            >
+                <span class="text-muted">Mark color</span>
+                <span class="mark-color-preview" th:style="'background-color:' + ${displayColor}"></span>
+                <span class="text-muted small" th:text="${displayLabel}">Blue</span>
             </div>
             <a class="btn btn-outline-secondary mt-2" href="/">Return to Index</a>
         </div>
@@ -208,6 +259,31 @@
     const diffSections = new Map();
     let activeTreeItem = null;
     let directoryIdCounter = 0;
+
+    const markColorInput = document.getElementById('markColorInput');
+    const markColorPreview = document.getElementById('markColorPreview');
+    const markColorLabel = document.getElementById('markColorLabel');
+
+    if (markColorInput && markColorPreview && markColorLabel) {
+        const updateMarkColorDisplay = (value, label) => {
+            if (!value) {
+                return;
+            }
+            markColorPreview.style.backgroundColor = value;
+            markColorLabel.textContent = label || value;
+        };
+
+        const selectedOption = markColorInput.options[markColorInput.selectedIndex];
+        updateMarkColorDisplay(
+                markColorInput.value,
+                selectedOption ? selectedOption.textContent : markColorInput.value,
+        );
+
+        markColorInput.addEventListener('change', (event) => {
+            const option = event.target.options[event.target.selectedIndex];
+            updateMarkColorDisplay(event.target.value, option ? option.textContent : event.target.value);
+        });
+    }
 
     const STATUS_INFO = {
         added: {label: 'Added', badgeClass: 'bg-success', headingClass: 'diff-heading-added'},
