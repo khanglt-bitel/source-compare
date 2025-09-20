@@ -5,6 +5,10 @@ import com.example.sourcecompare.infrastructure.persistence.StoredComparisonResu
 import com.example.sourcecompare.infrastructure.persistence.StoredComparisonResultRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,10 +18,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class ComparisonResultPersistenceService {
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final int MAX_PAGE_SIZE = 100;
+
     private static final List<MarkColorOption> MARK_COLOR_OPTIONS =
             List.of(
                     new MarkColorOption("royalblue", "Blue"),
@@ -74,20 +80,31 @@ public class ComparisonResultPersistenceService {
 
     @Transactional(readOnly = true)
     public List<StoredComparisonResultSummary> loadRecentComparisons() {
+        return searchComparisons(null, null, 0, DEFAULT_PAGE_SIZE).getContent();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<StoredComparisonResultSummary> searchComparisons(
+            String nameFilter, String ipFilter, int page, int size) {
+        String nameQuery = sanitizeFilter(nameFilter);
+        String ipQuery = sanitizeFilter(ipFilter);
+        Pageable pageable =
+                PageRequest.of(sanitizePage(page), sanitizeSize(size), sortByCreatedDesc());
+
         return repository
-                .findTop20ByOrderByCreatedDesc()
-                .stream()
+                .findByNameContainingIgnoreCaseAndIpRequestContainingIgnoreCase(
+                        nameQuery, ipQuery, pageable)
                 .map(
                         result -> {
                             String markColor = normalizeMarkColor(result.getMarkColor());
                             return new StoredComparisonResultSummary(
                                     result.getId(),
                                     result.getName(),
+                                    result.getIpRequest(),
                                     result.getCreated(),
                                     markColor,
                                     describeMarkColor(markColor));
-                        })
-                .collect(Collectors.toList());
+                        });
     }
 
     @Transactional
@@ -141,6 +158,7 @@ public class ComparisonResultPersistenceService {
     public record StoredComparisonResultSummary(
             Long id,
             String name,
+            String ipRequest,
             LocalDateTime created,
             String markColor,
             String markColorLabel) {}
@@ -172,5 +190,27 @@ public class ComparisonResultPersistenceService {
             return Optional.empty();
         }
         return MARK_COLOR_OPTIONS.stream().filter(option -> option.value().equals(value)).findFirst();
+    }
+
+    private Sort sortByCreatedDesc() {
+        return Sort.by(Sort.Direction.DESC, "created");
+    }
+
+    private int sanitizePage(int page) {
+        return Math.max(page, 0);
+    }
+
+    private int sanitizeSize(int requestedSize) {
+        if (requestedSize <= 0) {
+            return DEFAULT_PAGE_SIZE;
+        }
+        return Math.min(requestedSize, MAX_PAGE_SIZE);
+    }
+
+    private String sanitizeFilter(String filter) {
+        if (filter == null) {
+            return "";
+        }
+        return filter.trim();
     }
 }
