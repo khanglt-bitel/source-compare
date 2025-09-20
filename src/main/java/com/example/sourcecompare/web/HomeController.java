@@ -34,6 +34,8 @@ public class HomeController {
     @GetMapping("/")
     public String index(Model model) {
         model.addAttribute("message", "Source Compare Initialized");
+        model.addAttribute(
+                "recentComparisons", comparisonResultPersistenceService.loadRecentComparisons());
         return "index";
     }
 
@@ -62,10 +64,10 @@ public class HomeController {
         long id =
                 comparisonResultPersistenceService.saveComparison(
                         comparisonName, httpRequest.getRemoteAddr(), result);
-        return "redirect:/compare-result/" + id;
+        return "redirect:/compare/" + id;
     }
 
-    @GetMapping("/compare-result/{id}")
+    @GetMapping("/compare/{id}")
     public String viewComparison(@PathVariable("id") long id, Model model) {
         var storedResult = comparisonResultPersistenceService.loadComparison(id);
         model.addAttribute("message", storedResult.name());

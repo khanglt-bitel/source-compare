@@ -30,6 +30,29 @@
 <div class="container mt-4">
     <h1 th:text="${message}">Source Compare Initialized</h1>
 
+    <div class="mt-4">
+        <h2>Recent comparisons</h2>
+        <div th:if="${#lists.isEmpty(recentComparisons)}">
+            <p class="text-muted mb-0">No comparisons have been run yet.</p>
+        </div>
+        <ul class="list-group" th:if="${!#lists.isEmpty(recentComparisons)}">
+            <li
+                    class="list-group-item d-flex justify-content-between align-items-center"
+                    th:each="comparison : ${recentComparisons}"
+            >
+                <a th:href="@{|/compare/${comparison.id}|}" th:text="${comparison.name}">
+                    Comparison name
+                </a>
+                <span
+                        class="badge bg-secondary"
+                        th:text="${#temporals.format(comparison.created, 'yyyy-MM-dd HH:mm')}"
+                >
+                    2024-01-01 00:00
+                </span>
+            </li>
+        </ul>
+    </div>
+
     <form
             action="/compare"
             class="mt-3"

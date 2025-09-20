@@ -11,6 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class ComparisonResultPersistenceService {
@@ -47,6 +49,18 @@ public class ComparisonResultPersistenceService {
                 entity.getId(), entity.getName(), entity.getIpRequest(), entity.getCreated(), result);
     }
 
+    @Transactional(readOnly = true)
+    public List<StoredComparisonResultSummary> loadRecentComparisons() {
+        return repository
+                .findTop20ByOrderByCreatedDesc()
+                .stream()
+                .map(
+                        result ->
+                                new StoredComparisonResultSummary(
+                                        result.getId(), result.getName(), result.getCreated()))
+                .collect(Collectors.toList());
+    }
+
     private String toJson(ComparisonResult result) {
         try {
             return objectMapper.writeValueAsString(result);
@@ -67,4 +81,6 @@ public class ComparisonResultPersistenceService {
 
     public record StoredComparisonResultView(
             Long id, String name, String ipRequest, LocalDateTime created, ComparisonResult result) {}
+
+    public record StoredComparisonResultSummary(Long id, String name, LocalDateTime created) {}
 }
