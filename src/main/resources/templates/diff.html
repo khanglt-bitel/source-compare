@@ -124,6 +124,19 @@
         font-size: 1.5rem;
         font-weight: 600;
         border-left: 4px solid transparent;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .diff-heading .diff-heading-title {
+        flex: 1;
+    }
+
+    .diff-heading .form-check-input {
+        margin: 0;
+        cursor: pointer;
+        flex-shrink: 0;
     }
 
     .diff-heading.diff-heading-added {
@@ -178,6 +191,13 @@
         border-radius: 0.75rem;
         border: 1px solid rgba(0, 0, 0, 0.15);
         display: inline-block;
+    }
+
+    .go-to-top-button {
+        position: fixed;
+        right: 1.5rem;
+        bottom: 1.5rem;
+        z-index: 1050;
     }
 
     @keyframes diff-highlight {
@@ -276,6 +296,7 @@
     </div>
     <a class="btn btn-secondary mt-3" href="/">New Comparison</a>
 </div>
+<button class="btn btn-primary go-to-top-button d-none" id="goToTopButton" type="button">Go to top</button>
 <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html.min.js"></script>
 <script th:inline="javascript">
     const result = [[${result}]];
@@ -283,6 +304,7 @@
     const timingContainer = document.getElementById('timingSummary');
     const fileTreeContainer = document.getElementById('fileTree');
     const diffSections = new Map();
+    const checkboxRegistry = new Map();
     let activeTreeItem = null;
     let directoryIdCounter = 0;
 
@@ -412,6 +434,32 @@
             .replace(/^-+|-+$/g, '');
     }
 
+    function registerCheckbox(itemId, type, checkbox) {
+        if (!checkboxRegistry.has(itemId)) {
+            checkboxRegistry.set(itemId, {});
+        }
+        const entry = checkboxRegistry.get(itemId);
+        entry[type] = checkbox;
+
+        const otherType = type === 'tree' ? 'diff' : 'tree';
+        if (entry[otherType] && entry[otherType].checked !== checkbox.checked) {
+            checkbox.checked = entry[otherType].checked;
+        }
+    }
+
+    function syncCheckboxState(itemId, source, checked) {
+        const entry = checkboxRegistry.get(itemId);
+        if (!entry) {
+            return;
+        }
+        if (source !== 'tree' && entry.tree && entry.tree.checked !== checked) {
+            entry.tree.checked = checked;
+        }
+        if (source !== 'diff' && entry.diff && entry.diff.checked !== checked) {
+            entry.diff.checked = checked;
+        }
+    }
+
     function renderDiff(item) {
         const container = document.createElement('div');
         container.id = item.id;
@@ -420,11 +468,28 @@
         const statusInfo = STATUS_INFO[item.status] || STATUS_INFO.modified;
 
         const heading = document.createElement('h3');
-        heading.textContent = item.title;
         heading.className = 'diff-heading';
         if (statusInfo.headingClass) {
             heading.classList.add(statusInfo.headingClass);
         }
+
+        const diffCheckbox = document.createElement('input');
+        diffCheckbox.type = 'checkbox';
+        diffCheckbox.className = 'form-check-input diff-heading-checkbox';
+        diffCheckbox.id = `${item.id}-diff-checkbox`;
+        diffCheckbox.setAttribute('aria-label', `Select ${item.title}`);
+        heading.appendChild(diffCheckbox);
+
+        const headingText = document.createElement('span');
+        headingText.className = 'diff-heading-title';
+        headingText.textContent = item.title;
+        heading.appendChild(headingText);
+
+        registerCheckbox(item.id, 'diff', diffCheckbox);
+        diffCheckbox.addEventListener('change', () => {
+            syncCheckboxState(item.id, 'diff', diffCheckbox.checked);
+        });
+
         container.appendChild(heading);
 
         let toggleButton = null;
@@ -549,6 +614,11 @@
             checkbox.className = 'form-check-input tree-file-checkbox';
             checkbox.id = `${item.id}-checkbox`;
             checkbox.setAttribute('aria-label', `Select ${fileEntry.name}`);
+
+            registerCheckbox(item.id, 'tree', checkbox);
+            checkbox.addEventListener('change', () => {
+                syncCheckboxState(item.id, 'tree', checkbox.checked);
+            });
 
             const link = document.createElement('a');
             link.href = `#${item.id}`;
@@ -684,6 +754,24 @@
         activeTreeItem = hashItem;
         hashItem.scrollIntoView({block: 'nearest'});
     });
+
+    const goToTopButton = document.getElementById('goToTopButton');
+    if (goToTopButton) {
+        const toggleGoToTopVisibility = () => {
+            if (window.scrollY > 200) {
+                goToTopButton.classList.remove('d-none');
+            } else {
+                goToTopButton.classList.add('d-none');
+            }
+        };
+
+        goToTopButton.addEventListener('click', () => {
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        });
+
+        toggleGoToTopVisibility();
+        window.addEventListener('scroll', toggleGoToTopVisibility);
+    }
 </script>
 </body>
 </html>
