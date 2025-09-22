@@ -193,6 +193,10 @@
         display: inline-block;
     }
 
+    .d2h-file-side-diff {
+        overflow-x: auto;
+    }
+
     .go-to-top-button {
         position: fixed;
         right: 1.5rem;
@@ -499,6 +503,7 @@
             const html = Diff2Html.html(item.diff, {drawFileList: false, outputFormat: 'side-by-side'});
             const diffEl = document.createElement('div');
             diffEl.innerHTML = html;
+            disableDiffSideScrollSync(diffEl);
             const header = diffEl.querySelector('.d2h-file-header');
             content = diffEl.querySelector('.d2h-files-diff');
             toggleButton = document.createElement('button');
@@ -661,6 +666,28 @@
         });
 
         return ul;
+    }
+
+    function disableDiffSideScrollSync(container) {
+        if (!container) {
+            return;
+        }
+        const syncAttributes = [
+            'data-synchscroll-group',
+            'data-d2h-scroll-group',
+            'data-d2h-synch-scroll-group',
+        ];
+        const selector = syncAttributes.map((attr) => `[${attr}]`).join(', ');
+        if (!selector) {
+            return;
+        }
+        container.querySelectorAll(selector).forEach((element) => {
+            syncAttributes.forEach((attr) => {
+                if (element.hasAttribute(attr)) {
+                    element.removeAttribute(attr);
+                }
+            });
+        });
     }
 
     function renderFileTree(items) {
