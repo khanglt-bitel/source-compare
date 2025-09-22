@@ -156,6 +156,22 @@
         border-left-color: #6c757d;
     }
 
+    .home-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #0d6efd;
+        text-decoration: none;
+    }
+
+    .home-link:hover,
+    .home-link:focus {
+        text-decoration: underline;
+        color: #0a58ca;
+    }
+
     .mark-color-preview {
         width: 1.5rem;
         height: 1.5rem;
@@ -179,6 +195,7 @@
 >
     <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center">
         <div>
+            <a class="home-link mb-2" href="/">homepage</a>
             <p class="text-muted mb-1" th:if="${comparisonId != null}" th:text="'Comparison #' + ${comparisonId}">
                 Comparison #
             </p>
@@ -241,7 +258,6 @@
                 <span class="mark-color-preview" th:style="'background-color:' + ${displayColor}"></span>
                 <span class="text-muted small" th:text="${displayLabel}">Blue</span>
             </div>
-            <a class="btn btn-outline-secondary mt-2" href="/">Return to Index</a>
         </div>
     </div>
     <div class="row mt-3">
