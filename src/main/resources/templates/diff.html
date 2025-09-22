@@ -192,11 +192,21 @@
                 Request IP: 127.0.0.1
             </div>
             <form
-                    th:if="${canEditMarkColor}"
-                    th:action="@{|/compare/${comparisonId}/mark-color|}"
+                    th:if="${canEditComparison}"
+                    th:action="@{|/compare/${comparisonId}/edit|}"
                     method="post"
                     class="d-flex flex-wrap align-items-center gap-2 justify-content-end mt-2"
             >
+                <label class="form-label mb-0" for="nameInput">Name</label>
+                <input
+                        class="form-control form-control-sm w-auto"
+                        id="nameInput"
+                        maxlength="255"
+                        name="name"
+                        required
+                        th:value="${message}"
+                        type="text"
+                />
                 <label class="form-label mb-0" for="markColorInput">Mark color</label>
                 <span
                         class="mark-color-preview"
@@ -208,12 +218,12 @@
                         id="markColorInput"
                         name="markColor"
                         required
-                        th:value="${displayColor}"
                 >
                     <option
                             th:each="option : ${markColorOptions}"
                             th:text="${option.label}"
                             th:value="${option.value}"
+                            th:selected="${option.value == displayColor}"
                     >
                         Blue
                     </option>
@@ -221,11 +231,11 @@
                 <span class="text-muted small" id="markColorLabel" th:text="${displayLabel}">
                     Blue
                 </span>
-                <button class="btn btn-primary btn-sm" type="submit">Update color</button>
+                <button class="btn btn-primary btn-sm" type="submit">Save changes</button>
             </form>
             <div
                     class="d-flex align-items-center gap-2 justify-content-end mt-2"
-                    th:if="${!canEditMarkColor}"
+                    th:if="${!canEditComparison}"
             >
                 <span class="text-muted">Mark color</span>
                 <span class="mark-color-preview" th:style="'background-color:' + ${displayColor}"></span>

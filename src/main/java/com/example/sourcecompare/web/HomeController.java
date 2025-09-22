@@ -90,17 +90,19 @@ public class HomeController {
         model.addAttribute(
                 "markColorOptions", comparisonResultPersistenceService.getAvailableMarkColors());
         model.addAttribute(
-                "canEditMarkColor", storedResult.ipRequest() != null
+                "canEditComparison", storedResult.ipRequest() != null
                         && storedResult.ipRequest().equals(request.getRemoteAddr()));
         return "diff";
     }
 
-    @PostMapping("/compare/{id}/mark-color")
-    public String updateMarkColor(
+    @PostMapping("/compare/{id}/edit")
+    public String updateComparison(
             @PathVariable("id") long id,
-            @RequestParam("markColor") String markColor,
+            @RequestParam(name = "markColor", required = false) String markColor,
+            @RequestParam(name = "name", required = false) String name,
             HttpServletRequest request) {
-        comparisonResultPersistenceService.updateMarkColor(id, request.getRemoteAddr(), markColor);
+        comparisonResultPersistenceService.updateComparison(
+                id, request.getRemoteAddr(), markColor, name);
         return "redirect:/compare/" + id;
     }
 }

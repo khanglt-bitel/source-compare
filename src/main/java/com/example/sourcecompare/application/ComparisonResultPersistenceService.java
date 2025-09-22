@@ -108,7 +108,7 @@ public class ComparisonResultPersistenceService {
     }
 
     @Transactional
-    public void updateMarkColor(long id, String requesterIp, String markColor) {
+    public void updateComparison(long id, String requesterIp, String markColor, String name) {
         StoredComparisonResult entity =
                 repository
                         .findById(id)
@@ -121,11 +121,20 @@ public class ComparisonResultPersistenceService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed to edit this comparison");
         }
 
-        if (!isValidMarkColor(markColor)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid color value");
+        if (markColor != null) {
+            if (!isValidMarkColor(markColor)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid color value");
+            }
+            entity.setMarkColor(markColor);
         }
 
-        entity.setMarkColor(markColor);
+        if (name != null) {
+            String sanitizedName = name.trim();
+            if (sanitizedName.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name cannot be empty");
+            }
+            entity.setName(sanitizedName);
+        }
     }
 
     private String toJson(ComparisonResult result) {
